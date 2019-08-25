@@ -9,7 +9,7 @@ Best city plan looks like triangle symmetry, we got 3 major paths. Algoritm is v
 ### Legend:
 ..* Score - the more the better, we add points for every green house
 
-..* Blank - path
+1. Blank - path
 ...* Red Dot - path without connection
 ..* Triangle - Energy Tower
 ..* Stars - Bank (must have road around itself)

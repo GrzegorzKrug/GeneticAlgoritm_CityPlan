@@ -3,6 +3,9 @@ import datetime
 import time
 
 class C_GA_Log():
+    '''
+    My Logging class
+    '''
     def __init__(self):
         self.reset()
 

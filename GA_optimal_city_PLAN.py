@@ -235,7 +235,7 @@ class CGenetic():
         #     power_map.append([])
         #     for col in range(self.COLUMNS):
         #         power_map[row].append
-        for k in range(20):
+        for k in range(25):
             f_path_updated = False
             for row,Row in enumerate(CityPlan):
                 for col,element in enumerate(Row):
@@ -718,8 +718,9 @@ refill=time_refill,eta=self.eta_now,logic=time_logic))
 
 cls()
 baza = CGenetic("Both",columns=27,rows=27,UNITS=10)
-baza.train(eta=10,shake_force=1,shake_chance=0.025,mutants_density=0.2,\
-    mutation_factor=0.2)
+for x in range(10):
+    baza.train(eta=1,shake_force=1,shake_chance=0.025,mutants_density=0.2,\
+        mutation_factor=0.2)
 
 # baza.train(eta=150,shake_force=1,shake_chance=0.01,mutants_density=0.5)
 # baza.train(eta=750,shake_force=1,shake_chance=0.002,mutants_density=0.5)

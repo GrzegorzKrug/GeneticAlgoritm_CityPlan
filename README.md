@@ -11,8 +11,8 @@ Best city plan looks like triangle symmetry, we got 3 major paths. Algoritm is v
 * **Blank** - *path*
 	* **red dot** - path without connection
 * **Triangle** - *Energy Tower*
-* **Stars** - *Bank (must have road around itself)*
-* **Squares** - *Houses, every house is builded of 4 parts*
+* **Stars** - *Bank* (must have road around itself)
+* **Squares** - *Houses*, every house is builded of 4 parts
 	* **green**: ok
 	* **yellow**: squares are not fully connected (ignored)
 	* **black**: house has no path to outer side

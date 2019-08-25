@@ -7,7 +7,7 @@ Idea came from game "They are billions"
 Best city plan looks like triangle symmetry, we got 3 major paths. Algoritm is very heavy loaded, minor human adjustment is indicated.
 
 ### Legend:
-..* Score - the more the better, we add points for every green house
+* Score - the more the better, we add points for every green house
 ..* Blank - path
 	* Red Dot - path without connection
 ..* Triangle - Energy Tower

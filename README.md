@@ -6,23 +6,17 @@ Idea came from game "They are billions"
 # Best Solution 
 Best city plan looks like triangle symmetry, we got 3 major paths. Algoritm is very heavy loaded, minor human adjustment is indicated.
 
-Score - the more the better, we add points for every green house
+### Legend:
+.*Score - the more the better, we add points for every green house
 
-Blank - path
->Red Dot - path without connection
-
-Triangle - Energy Tower
-
-Stars - Bank (must have road around itself)
-
-Squares - Houses, every house is builded of 4 parts, 
->green: ok
-
->yellow: squares are not fully connected (ignored)
-
->black: house has no path to outer side
-
-
+.*Blank - path
+..*Red Dot - path without connection
+.*Triangle - Energy Tower
+.*Stars - Bank (must have road around itself)
+.*Squares - Houses, every house is builded of 4 parts, 
+..*green: ok
+..*yellow: squares are not fully connected (ignored)
+..*black: house has no path to outer side
 
 ![Alt](/City_Plan/Gold.png?raw=true "Golden Solution")
 

@@ -9,14 +9,12 @@ Best city plan looks like triangle symmetry, we got 3 major paths. Algoritm is v
 ### Legend:
 1. Score - the more the better, we add points for every green house
 2. Blank - path
-
-*** Red Dot - path without connection
-*** Triangle - Energy Tower
+* Red Dot - path without connection
+* Triangle - Energy Tower
 
 3. Stars - Bank (must have road around itself)
 4. Squares - Houses, every house is builded of 4 parts, 
-
-*** green: ok
+* green: ok
 
 *** yellow: squares are not fully connected (ignored)
 

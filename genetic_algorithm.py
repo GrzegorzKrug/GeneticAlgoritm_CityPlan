@@ -7,7 +7,11 @@ import math
 import datetime
 import numpy as np
 
+"Game Rules"
 BOARD_SIZE = 27
+BANK_RANGE = (BOARD_SIZE - 3) // 2
+POWER_RANGE = 7
+
 HOME_FIX_OVERWRITE = True
 
 
@@ -25,7 +29,7 @@ class Game:
                     plt.text(x, y, "o", fontsize=10)
                 if type(element) is Home:
                     if element.base:
-                        plt.text(x - 0.2, y + 0.2, element.marker, fontsize=element.size, color=element.color)
+                        plt.text(x - 0.2, y + 0.3, element.marker, fontsize=element.size, color=element.color)
                 else:
                     fontsize = 20
                     plt.text(x, y, element.marker, fontsize=element.size, color=element.color)
@@ -62,11 +66,18 @@ class Game:
                             try:
                                 for field in self.house_fields(y, x):
                                     self.board[field] = Home()
+                                try:
+                                    if type(self.board[y - 1, x + 1]) is Home:
+                                        self.board[y - 1, x + 1] = Road()
+                                except IndexError:
+                                    pass
                             except IndexError:
                                 self.board[y, x] = Road()
 
                         elif not valid:
                             self.board[y, x] = Road()
+                    else:
+                        raise NotImplementedError
 
                 elif type(element) is Road:
                     pass
@@ -145,6 +156,8 @@ class Tower(Figure):
         self.power = False
         self.marker = '⚡'
         self.color = 'b'
+
+        self.power_range = POWER_RANGE
 
     def __repr__(self):
         return "T"

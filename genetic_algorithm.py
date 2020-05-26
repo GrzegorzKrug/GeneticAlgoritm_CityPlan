@@ -1,7 +1,8 @@
 from matplotlib import pyplot as plt
 
-import os
 import numpy as np
+import random
+import os
 
 "Game Rules"
 BOARD_SIZE = 27
@@ -15,29 +16,56 @@ class Game:
     def __init__(self):
         # self.board = np.zeros((BOARD_SIZE, BOARD_SIZE))
         self.score = 0
-        self.random_board()
+        self.board = self.random_board()
+        self.base_fields = self.initial_field_list()
+
+        self.put_bank()
+        self.base_energy_field()
+        self.base_reach()
+
         os.makedirs('pics', exist_ok=True)
         os.makedirs('pics/debug', exist_ok=True)
 
-    def draw(self, debug=False, save=None):
+    def draw(self, save=None, debug_road=False, debug_power=False):
+        """
+        Function that draw board.
+        If save is passed, then images is saved and not shown
+        Args:
+            debug: boolean, draws some debug thing
+            save: string, name of file to save to
+
+        Returns:
+
+        """
         plt.figure(figsize=(8, 8))
+        plt.grid()
         for y, row in enumerate(self.board):
             for x, element in enumerate(row):
-                if debug:
-                    plt.text(x, y, "o", fontsize=10)
                 if type(element) is Home:
                     if element.base:
-                        plt.text(x - 0.2, y + 0.3, element.marker, fontsize=element.size, color=element.color)
+                        plt.text(x - 0.1, y + 0.4, element.marker, fontsize=element.size, color=element.color)
                     # else:
-                    #     plt.text(x - 0.2, y + 0.3, element.marker, fontsize=20, color='k')
+                    #     plt.text(x, y + 0.2, element.marker, fontsize=16, color='k')
                 else:
+                    if not debug_road and type(element) is Road:
+                        power = self.energy[y, x]
+                        plt.text(x, y, '⚡', fontsize=15, color='b' if power == 1 else 'r')
                     plt.text(x, y, element.marker, fontsize=element.size, color=element.color)
-        if debug:
-            dist = 27
-            plt.plot([0, dist, dist, 0, 0], [0, 0, dist, dist, 0], 'k', '.-')
-        plt.xlim([-1, 28])
-        plt.ylim([-1, 28])
-        plt.grid()
+
+                if debug_road:
+                    color = 'g' if self.reach[y, x] == 1 else 'r'
+                    plt.text(x, y, '✖', fontsize=15, color=color)
+                if debug_power:
+                    power = self.energy[y, x]
+                    plt.text(x, y, '⚡', fontsize=15, color='b' if power == 1 else 'r')
+
+        limit = [0, 27]
+        plt.xlim(limit)
+        plt.ylim(limit)
+        # if debug:
+        #     dist = 27
+        #     plt.plot([0, dist, dist, 0, 0], [0, 0, dist, dist, 0], 'k', '.-')
+
         if save:
             plt.savefig(f"pics/{save}.png")
             plt.close()
@@ -50,11 +78,66 @@ class Game:
         yield x + 1, y
         yield x + 1, y + 1
 
+    def put_bank(self):
+        self.board[10:15, 10:15] = Road()
+        self.board[11:14, 11:14] = Bank()
+
+    def base_energy_field(self):
+        self.energy = np.zeros((BOARD_SIZE, BOARD_SIZE), dtype=int)
+        self.energy[0:27, 0:POWER_RANGE] = 1
+        self.energy[0:27, 27 - POWER_RANGE:27] = 1
+        self.energy[0:POWER_RANGE, 0:27] = 1
+        self.energy[27 - POWER_RANGE:27, 0:27] = 1
+
+    def base_reach(self):
+        self.reach = np.zeros((BOARD_SIZE, BOARD_SIZE), dtype=int)
+        self.reach[0, 0:27] = 1
+        self.reach[26, 0:27] = 1
+        self.reach[0:27, 0] = 1
+        self.reach[0:27, 26] = 1
+
+    @staticmethod
+    def initial_field_list():
+        area = np.zeros((BOARD_SIZE, BOARD_SIZE), dtype=int)
+        area[0:27, 0:POWER_RANGE] = 1
+        area[0:27, 27 - POWER_RANGE:27] = 1
+        area[0:POWER_RANGE, 0:27] = 1
+        area[27 - POWER_RANGE:27, 0:27] = 1
+        out = []
+        for y, row in enumerate(area):
+            for x, val in enumerate(row):
+                if val == 1:
+                    out.append((y, x))
+        return out
+
     def validate(self):
+        """
+        Validation order:
+            Put basic stuff:
+                bank, reach, energy
+            Fix Homes, missing pieces to foundation, delete single pieces
+            Check road reach
+            Check power map
+            Assign power status
+            Assign road reach
+        Returns:
+
+        """
+        self.put_bank()
+        self.base_energy_field()
+        self.base_reach()
+        self._validate_house()
+        self._check_power_and_road()
+
+    def _validate_house(self):
         for y, row in enumerate(self.board):
+            "Fixing homes loop"
             for x, element in enumerate(row):
                 if type(element) is Home:
                     if element.base:
+                        if 8 < x < 15 and 8 < y < 15:
+                            self.board[y, x] = Road()
+                            continue
                         try:
                             for field in self.house_fields(y, x):
                                 assert type(self.board[field]) is Home and self.board[field].base is False
@@ -68,7 +151,7 @@ class Game:
                         if not valid and HOME_FIX_OVERWRITE:
                             try:
                                 for field in self.house_fields(y, x):
-                                    self.board[field] = Home()
+                                    self.board[field] = Home(base=False)
                                 try:
                                     check_field = (y + 1, x - 1)
                                     if type(self.board[check_field]) is Home and self.board[check_field].base:
@@ -81,35 +164,87 @@ class Game:
                         elif not valid:
                             self.board[y, x] = Road()
                     else:
-                        pass
-                        # raise NotImplementedError
+                        "Check pieces that are not foundation, and remove if there is no base in range"
+                        try:
+                            valid = type(self.board[y, x - 1]) is Home and self.board[y, x - 1].base
+                        except IndexError:
+                            valid = False
+
+                        if not valid:
+                            try:
+                                valid = type(self.board[y - 1, x]) is Home and self.board[y - 1, x].base
+                            except IndexError:
+                                valid = False
+                        if not valid:
+                            try:
+                                valid = type(self.board[y - 1, x - 1]) is Home and self.board[y - 1, x - 1].base
+                            except IndexError:
+                                valid = False
+                        if not valid:
+                            self.board[y, x] = Road()
 
                 elif type(element) is Road:
                     pass
                 elif type(element) is Tower:
+                    pass
+                elif type(element) is Bank:
                     pass
                 elif type(element) is Figure:
                     raise ValueError("How did you get here? Base class figure is on board!")
                 else:
                     raise ValueError(f"This object has unknown type: {type(element)}")
 
-    def random_board(self):
-        self.board = np.zeros((BOARD_SIZE, BOARD_SIZE), dtype=Figure)
+    @staticmethod
+    def reach_field(y, x):
+        yield y + 1, x
+        yield y - 1, x
+        yield y, x + 1
+        yield y, x - 1
+
+    @staticmethod
+    def power_reach_field(y, x):
+        pass
+
+    def _check_power_and_road(self):
+        new_fields = self.base_fields.copy()
+        while len(new_fields) > 0:
+            fields_to_check = new_fields
+            new_fields = []
+            for y, x in fields_to_check:
+                "Checking electricity and reach"
+                element = self.board[y, x]
+                if type(element) is Road:
+                    if self.reach[y, x] == 1:
+                        for field in self.reach_field(y, x):
+                            try:
+                                if self.reach[field] == 0:
+                                    self.reach[field] = 1
+                                    new_fields.append(field)
+                            except IndexError:
+                                pass
+
+                elif type(element) is Tower:
+                    pass
+                elif type(element) is Home:
+                    pass
+                elif type(element) is Bank:
+                    pass
+                elif type(element) is Figure:
+                    raise ValueError("How did you get here? Base class figure is on board!")
+                else:
+                    raise ValueError(f"This object has unknown type: {type(element)}")
+
+    @staticmethod
+    def random_board():
+        board = np.zeros((BOARD_SIZE, BOARD_SIZE), dtype=Figure)
         pool = [Road, Home, Tower]
-        chance = 1 / len(pool)
+        chance = [0.7, 0.25, 0.05]
+        board = np.random.choice(pool, size=(BOARD_SIZE, BOARD_SIZE), p=chance)
 
-        for y, row in enumerate(self.board):
+        for y, row in enumerate(board):
             for x, element in enumerate(row):
-                roll = np.random.rand()
-                selection = 0
-                while roll > chance:
-                    roll -= chance
-                    selection += 1
-
-                figure = pool[selection]()
-                if type(figure) is Home:
-                    figure.base = True
-                self.board[x, y] = figure
+                board[y, x] = board[y, x]()
+        return board
 
 
 class Figure:
@@ -134,12 +269,10 @@ class Road(Figure):
 
 
 class Home(Figure):
-    def __init__(self, base=False):
+    def __init__(self, base=True):
         super().__init__()
         self.power = False
         self.path = False
-        self.position = None
-        self.marker = '⌂'
         self.marker = '▩'
         self.size = 37
         self.color = 'g'
@@ -152,12 +285,18 @@ class Home(Figure):
 class Tower(Figure):
     def __init__(self):
         super().__init__()
-        self.position = None
-        self.power = False
-        self.marker = '⚡'
-        self.color = 'b'
-
         self.power_range = POWER_RANGE
+        self.power = False
+        self.marker = 'T'
+        self.color = (0.7, 0, 0.8)
+
+    def power_off(self):
+        self.power = False
+        self.color = (0.7, 0, 0.8)
+
+    def power_on(self):
+        self.power = True
+        self.color = (0, 0.8, 0)
 
     def __repr__(self):
         return "T"
@@ -165,18 +304,16 @@ class Tower(Figure):
 
 class Bank(Figure):
     def __init__(self):
-        pass
+        super().__init__()
+        self.marker = 'B'
+        self.color = (0.1, 0.6, 0.5)
 
     def __repr__(self):
         return "B"
 
 
 if __name__ == "__main__":
-    game = Game()
-    game.draw(save='0')
-    game.validate()
-    game.draw(save='1')
-    # game.validate()
-    # game.draw(save='2')
-    # game.validate()
-    # game.draw(save='3')
+    for x in range(10):
+        game = Game()
+        game.validate()
+        game.draw(debug_road=True, save=f"{x}_fixed")

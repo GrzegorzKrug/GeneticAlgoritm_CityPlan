@@ -43,9 +43,11 @@ class Game:
             for x, element in enumerate(row):
                 if type(element) is Home:
                     if element.base:
-                        plt.text(x - 0.1, y + 0.4, element.marker, fontsize=element.size, color=element.color)
-                    # else:
-                    #     plt.text(x, y + 0.2, element.marker, fontsize=16, color='k')
+                        if element.reach:
+                            color = element.color
+                        else:
+                            color = 'k'
+                        plt.text(x - 0.1, y + 0.4, element.marker, fontsize=element.size, color=color)
                 else:
                     if not debug_road and type(element) is Road:
                         power = self.energy[y, x]
@@ -54,10 +56,10 @@ class Game:
 
                 if debug_road:
                     color = 'g' if self.reach[y, x] == 1 else 'r'
-                    plt.text(x, y, '✖', fontsize=15, color=color)
+                    plt.text(x, y, '✖', fontsize=10, color=color)
                 if debug_power:
                     power = self.energy[y, x]
-                    plt.text(x, y, '⚡', fontsize=15, color='b' if power == 1 else 'r')
+                    plt.text(x, y, '⚡', fontsize=10, color='b' if power == 1 else 'r')
 
         limit = [0, 27]
         plt.xlim(limit)
@@ -71,12 +73,6 @@ class Game:
             plt.close()
         else:
             plt.show()
-
-    @staticmethod
-    def house_fields(x, y):
-        yield x, y + 1
-        yield x + 1, y
-        yield x + 1, y + 1
 
     def put_bank(self):
         self.board[10:15, 10:15] = Road()
@@ -97,6 +93,12 @@ class Game:
         self.reach[0:27, 26] = 1
 
     @staticmethod
+    def house_fields(a, b):
+        yield a, b + 1
+        yield a + 1, b
+        yield a + 1, b + 1
+
+    @staticmethod
     def initial_field_list():
         area = np.zeros((BOARD_SIZE, BOARD_SIZE), dtype=int)
         area[0:27, 0:POWER_RANGE] = 1
@@ -109,6 +111,19 @@ class Game:
                 if val == 1:
                     out.append((y, x))
         return out
+
+    @staticmethod
+    def reach_field(y, x):
+        yield y + 1, x
+        yield y - 1, x
+        yield y, x + 1
+        yield y, x - 1
+
+    @staticmethod
+    def power_reach_field(y, x):
+        yield y + 1, x
+        yield y + 1, x + 1
+        yield y, x + 1
 
     def validate(self):
         """
@@ -126,13 +141,21 @@ class Game:
         self.put_bank()
         self.base_energy_field()
         self.base_reach()
-        self._validate_house()
+        self._clear_layout()
         self._check_power_and_road()
+        self._apply_reach_and_power_to_home()
 
-    def _validate_house(self):
+    def _clear_layout(self):
+        """
+        Clear reach and power markers
+        Returns:
+
+        """
         for y, row in enumerate(self.board):
             "Fixing homes loop"
             for x, element in enumerate(row):
+                element.power = False
+                element.reach = False
                 if type(element) is Home:
                     if element.base:
                         if 8 < x < 15 and 8 < y < 15:
@@ -194,17 +217,6 @@ class Game:
                 else:
                     raise ValueError(f"This object has unknown type: {type(element)}")
 
-    @staticmethod
-    def reach_field(y, x):
-        yield y + 1, x
-        yield y - 1, x
-        yield y, x + 1
-        yield y, x - 1
-
-    @staticmethod
-    def power_reach_field(y, x):
-        pass
-
     def _check_power_and_road(self):
         new_fields = self.base_fields.copy()
         while len(new_fields) > 0:
@@ -224,7 +236,14 @@ class Game:
                                 pass
 
                 elif type(element) is Tower:
-                    pass
+                    if not element.power and self.energy[y, x] == 1:
+                        element.power = True
+                        for field in self.power_reach_field(y, x):
+                            try:
+                                self.energy[field] = 1
+                            except IndexError:
+                                pass
+
                 elif type(element) is Home:
                     pass
                 elif type(element) is Bank:
@@ -234,9 +253,28 @@ class Game:
                 else:
                     raise ValueError(f"This object has unknown type: {type(element)}")
 
+    def _apply_reach_and_power_to_home(self):
+        for y, row in enumerate(self.board):
+            for x, element in enumerate(row):
+                if type(element) is Home and element.base:
+                    if self.energy[y, x] == 1:
+                        element.power = True
+                    if self.reach[y, x] == 1:
+                        element.reach = True
+
+                    if not (element.power and element.reach):
+                        # print(element.power, element.reach)
+                        for field in self.house_fields(y, x):
+                            try:
+                                if self.energy[field] == 1:
+                                    element.power = True
+                                if self.reach[field] == 1:
+                                    element.reach = True
+                            except IndexError:
+                                pass
+
     @staticmethod
     def random_board():
-        board = np.zeros((BOARD_SIZE, BOARD_SIZE), dtype=Figure)
         pool = [Road, Home, Tower]
         chance = [0.7, 0.25, 0.05]
         board = np.random.choice(pool, size=(BOARD_SIZE, BOARD_SIZE), p=chance)
@@ -313,7 +351,7 @@ class Bank(Figure):
 
 
 if __name__ == "__main__":
-    for x in range(10):
+    for x in range(5):
         game = Game()
         game.validate()
         game.draw(debug_road=True, save=f"{x}_fixed")

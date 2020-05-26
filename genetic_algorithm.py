@@ -1,10 +1,6 @@
 from matplotlib import pyplot as plt
 
-import random
-import time
-import pandas as pd
-import math
-import datetime
+import os
 import numpy as np
 
 "Game Rules"
@@ -20,8 +16,10 @@ class Game:
         # self.board = np.zeros((BOARD_SIZE, BOARD_SIZE))
         self.score = 0
         self.random_board()
+        os.makedirs('pics', exist_ok=True)
+        os.makedirs('pics/debug', exist_ok=True)
 
-    def draw(self, debug=False):
+    def draw(self, debug=False, save=None):
         plt.figure(figsize=(8, 8))
         for y, row in enumerate(self.board):
             for x, element in enumerate(row):
@@ -30,8 +28,9 @@ class Game:
                 if type(element) is Home:
                     if element.base:
                         plt.text(x - 0.2, y + 0.3, element.marker, fontsize=element.size, color=element.color)
+                    # else:
+                    #     plt.text(x - 0.2, y + 0.3, element.marker, fontsize=20, color='k')
                 else:
-                    fontsize = 20
                     plt.text(x, y, element.marker, fontsize=element.size, color=element.color)
         if debug:
             dist = 27
@@ -39,7 +38,11 @@ class Game:
         plt.xlim([-1, 28])
         plt.ylim([-1, 28])
         plt.grid()
-        plt.show()
+        if save:
+            plt.savefig(f"pics/{save}.png")
+            plt.close()
+        else:
+            plt.show()
 
     @staticmethod
     def house_fields(x, y):
@@ -67,8 +70,9 @@ class Game:
                                 for field in self.house_fields(y, x):
                                     self.board[field] = Home()
                                 try:
-                                    if type(self.board[y - 1, x + 1]) is Home:
-                                        self.board[y - 1, x + 1] = Road()
+                                    check_field = (y + 1, x - 1)
+                                    if type(self.board[check_field]) is Home and self.board[check_field].base:
+                                        self.board[check_field] = Road()
                                 except IndexError:
                                     pass
                             except IndexError:
@@ -77,7 +81,8 @@ class Game:
                         elif not valid:
                             self.board[y, x] = Road()
                     else:
-                        raise NotImplementedError
+                        pass
+                        # raise NotImplementedError
 
                 elif type(element) is Road:
                     pass
@@ -105,11 +110,6 @@ class Game:
                 if type(figure) is Home:
                     figure.base = True
                 self.board[x, y] = figure
-
-        self.board[0, 0] = Home(base=True)
-        self.board[0, 1] = Home(base=True)
-        self.board[0, 2] = Home(base=True)
-        self.board[0, 3] = Home(base=True)
 
 
 class Figure:
@@ -173,5 +173,10 @@ class Bank(Figure):
 
 if __name__ == "__main__":
     game = Game()
+    game.draw(save='0')
     game.validate()
-    game.draw()
+    game.draw(save='1')
+    # game.validate()
+    # game.draw(save='2')
+    # game.validate()
+    # game.draw(save='3')

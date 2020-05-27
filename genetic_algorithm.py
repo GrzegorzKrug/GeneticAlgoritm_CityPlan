@@ -7,16 +7,19 @@ import os
 "Game Rules"
 BOARD_SIZE = 27
 BANK_RANGE = (BOARD_SIZE - 3) // 2
-POWER_RANGE = 7
+POWER_RANGE = 8
 
 HOME_FIX_OVERWRITE = True
 
 
 class Game:
-    def __init__(self):
+    def __init__(self, empty_board=False):
         # self.board = np.zeros((BOARD_SIZE, BOARD_SIZE))
         self.score = 0
-        self.board = self.random_board()
+        if empty_board:
+            self.board = self.empty_board()
+        else:
+            self.board = self.random_board()
         self.base_fields = self.initial_field_list()
 
         self.put_bank()
@@ -49,7 +52,7 @@ class Game:
                             color = 'k'
                         plt.text(x - 0.1, y + 0.4, element.marker, fontsize=element.size, color=color)
                 else:
-                    if not debug_road and type(element) is Road:
+                    if not debug_road and type(element) is Road and not debug_power:
                         power = self.energy[y, x]
                         plt.text(x, y, '⚡', fontsize=15, color='b' if power == 1 else 'r')
                     plt.text(x, y, element.marker, fontsize=element.size, color=element.color)
@@ -59,7 +62,7 @@ class Game:
                     plt.text(x, y, '✖', fontsize=10, color=color)
                 if debug_power:
                     power = self.energy[y, x]
-                    plt.text(x, y, '⚡', fontsize=10, color='b' if power == 1 else 'r')
+                    plt.text(x, y, '⚡', fontsize=20, color='b' if power == 1 else 'r')
 
         limit = [0, 27]
         plt.xlim(limit)
@@ -75,8 +78,8 @@ class Game:
             plt.show()
 
     def put_bank(self):
-        self.board[10:15, 10:15] = Road()
-        self.board[11:14, 11:14] = Bank()
+        self.board[11:16, 11:16] = Road()
+        self.board[12:15, 12:15] = Bank()
 
     def base_energy_field(self):
         self.energy = np.zeros((BOARD_SIZE, BOARD_SIZE), dtype=int)
@@ -121,9 +124,29 @@ class Game:
 
     @staticmethod
     def power_reach_field(y, x):
-        yield y + 1, x
-        yield y + 1, x + 1
-        yield y, x + 1
+        assert POWER_RANGE == 8
+        #         . . . . .
+        #       . . . . . .
+        #     . . . . . . .
+        #   . . . . . . . .
+        # . . . . . . . . .
+        # . . . . . . . . .
+        # . . . . . . . . .
+        # . . . . . . . . .
+        # . . . . . . . . T
+        fields = []
+        for new_y in range(y - 4, y + 5):
+            if new_y < 0 or new_y >= BOARD_SIZE:
+                continue
+            for new_x in range(x - 8, x + 9):
+                fields.append((new_y, new_x))
+        for new_y in range(y - 8, y + 8 + 1):
+            if new_y < 0 or new_y >= BOARD_SIZE:
+                continue
+            for new_x in range(x - 4, x + 4 + 1):
+                fields.append((new_y, new_x))
+
+        return fields
 
     def validate(self):
         """
@@ -236,6 +259,7 @@ class Game:
                                 pass
 
                 elif type(element) is Tower:
+                    pass
                     if not element.power and self.energy[y, x] == 1:
                         element.power = True
                         for field in self.power_reach_field(y, x):
@@ -272,6 +296,14 @@ class Game:
                                     element.reach = True
                             except IndexError:
                                 pass
+
+    @staticmethod
+    def empty_board():
+        board = np.empty((BOARD_SIZE, BOARD_SIZE), dtype=Figure)
+        for y, row in enumerate(board):
+            for x, element in enumerate(row):
+                board[y, x] = Road()
+        return board
 
     @staticmethod
     def random_board():
@@ -351,7 +383,8 @@ class Bank(Figure):
 
 
 if __name__ == "__main__":
-    for x in range(5):
-        game = Game()
-        game.validate()
-        game.draw(debug_road=True, save=f"{x}_fixed")
+    game = Game(empty_board=True)
+    game.board[6, 11] = Tower()
+    game.validate()
+    x = 0
+    game.draw(debug_power=True, save=f"{x}_fixed")

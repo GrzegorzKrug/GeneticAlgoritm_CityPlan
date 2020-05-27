@@ -43,7 +43,7 @@ class Game:
             element = Road()
         elif figure == 'random':
             pool = [Road, Home, Tower]
-            element = np.random.choice(pool, size=1, p=(0.4, 0.4, 0.2))[0]()
+            element = np.random.choice(pool, size=1, p=(0.3, 0.5, 0.2))[0]()
         else:
             raise ValueError(f"Unrecognized figure type: {figure}")
 
@@ -571,8 +571,8 @@ class Evolution:
             stats['scores'] += current_scores
             avg = np.mean(current_scores)
             stats['pool_avg'].append(avg)
-            print(f"Epoch {x:<5} ended with avg: {avg:<6.2f}, "
-                  f"best_homes: {self.pool[0][0].home_count:<3}, best: {np.max(current_scores):<5.2f}")
+            print(f"Epoch {x:<5} ended with avg: {avg:>8.2f}, "
+                  f"best_homes: {self.pool[0][0].home_count:>3}, best: {np.max(current_scores):<7.2f}")
 
         print(f"Evolution took: {(time.time() - time0) / 60:<4.2f} min")
         plt.figure(figsize=(16, 9))
@@ -683,9 +683,9 @@ class Evolution:
 
 
 if __name__ == "__main__":
-    name = "run1"
+    name = "run2"
     alg1 = Evolution(name)
-    alg1.evolution(1000)
+    alg1.evolution(1500)
     alg1.print_scores(5)
     alg1.draw_best(5)
     alg1.save_pool()

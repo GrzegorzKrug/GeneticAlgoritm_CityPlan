@@ -491,7 +491,7 @@ class Evolution:
                  shuffle_chance=0.4, shuffle_ammount_random=4,
                  clone_chance=0.3,
                  swap_chance=0.05,
-                 drop_chance=0.003, drop_ammount=0.35):
+                 drop_chance=0.003, drop_ammount=0.1):
         self.pool_size = pool_size
         self.shuffle_chance = shuffle_chance
         self.shuffle_ammount_random = shuffle_ammount_random

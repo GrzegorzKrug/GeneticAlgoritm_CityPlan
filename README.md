@@ -21,7 +21,8 @@ All evolutions are rejected if they decrease score
     
     Every agent has chance to not survive. At each epoch, 10% of population is removed and replaced with new random agents. 
 ### First results
-Best home from fun.
+Best results so far.
+
 ![Best home from run](./run2/best_0.png)
 
 ![Scores](./run2/stats_05-27--23-43-56.png)

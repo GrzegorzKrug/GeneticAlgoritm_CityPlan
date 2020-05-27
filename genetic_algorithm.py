@@ -301,6 +301,11 @@ class Game:
                     raise ValueError(f"This object has unknown type: {type(element)}")
 
     def _check_power_and_road(self):
+        """
+        Creates new map of power and reach.
+        Returns:
+
+        """
         new_fields = self.base_fields.copy()
         while len(new_fields) > 0:
             fields_to_check = new_fields
@@ -314,7 +319,8 @@ class Game:
                             try:
                                 if self.reach[field] == 0:
                                     self.reach[field] = 1
-                                    new_fields.append(field)
+                                    if type(self.board[field]) is Road:
+                                        new_fields.append(field)
                             except IndexError:
                                 pass
 
@@ -325,6 +331,9 @@ class Game:
                         for field in self.power_reach_field(y, x):
                             try:
                                 self.energy[field] = 1
+                                if type(self.board[field]) is Tower:
+                                    new_fields.append(field)
+
                             except IndexError:
                                 pass
 
@@ -338,6 +347,11 @@ class Game:
                     raise ValueError(f"This object has unknown type: {type(element)}")
 
     def _apply_reach_and_power_to_home(self):
+        """
+        Assigns power and reach to home foundation element
+        Returns:
+
+        """
         for y, row in enumerate(self.board):
             for x, element in enumerate(row):
                 if type(element) is Home and element.base:

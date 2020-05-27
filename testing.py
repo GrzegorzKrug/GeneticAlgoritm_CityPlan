@@ -75,3 +75,21 @@ def test4():
     assert game.energy[y + 6, x - 6] == 1
     assert game.energy[y + 7, x - 6] == 0
     assert game.energy[y + 6, x - 7] == 0
+
+
+def test5():
+    game = Game(empty_board=True)
+
+    game.add(5, 5, 'tower')
+    y, x = 12, 10
+    game.add(y, x, 'tower')
+    game.validate()
+    game.draw(debug_power=True, save="test/5")
+
+    assert game.energy[y + 8, x] == 1
+    assert game.energy[y + 8, x + 4] == 1
+    assert game.energy[y + 7, x + 5] == 1
+    assert game.energy[y + 6, x + 6] == 1
+    assert game.energy[y + 6, x + 7] == 0
+    assert game.energy[y + 6, x + 8] == 0
+    assert game.energy[y + 5, x + 8] == 0

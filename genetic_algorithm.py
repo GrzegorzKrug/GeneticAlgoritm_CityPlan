@@ -11,7 +11,7 @@ POWER_RANGE = 8
 
 HOME_SCORE = 10
 ROAD_SCORE = 0
-TOWER_SCORE = -50
+TOWER_SCORE = -10
 
 HOME_FIX_OVERWRITE = True
 
@@ -37,10 +37,16 @@ class Game:
             element = Tower()
         elif figure == 'road':
             element = Road()
+        elif figure == 'random':
+            pool = [Road, Home, Tower]
+            element = np.random.choice(pool, size=1)[0]()
         else:
             raise ValueError(f"Unrecognizes figure type: {figure}")
 
         self.board[y, x] = element
+
+    def random_element(self):
+        pass
 
     def draw(self, save=None, debug_road=False, debug_power=False, more_text=None):
         """
@@ -478,11 +484,18 @@ class Bank(Figure):
 
 
 class Evolution:
-    def __init__(self, name, pool_size=100, shuffle_chance=0.03, mutation_chance=0.1, drop_chance=0.001):
+    def __init__(self, name, pool_size=100,
+                 shuffle_chance=0.05, shuffle_ammount=5,
+                 clone_chance=0.12,
+                 mutation_chance=0.1,
+                 drop_chance=0.001, drop_ammount=0.35):
         self.pool_size = pool_size
         self.shuffle_chance = shuffle_chance
+        self.shuffle_ammount = shuffle_ammount
+        self.clone_chance = clone_chance
         self.mutation_chance = mutation_chance
         self.drop_chance = drop_chance
+        self.drop_ammount = drop_ammount
 
         self.name = name
         dt = datetime.datetime.timetuple(datetime.datetime.now())
@@ -507,7 +520,7 @@ class Evolution:
 
     def print_scores(self, n):
         for inde, game in enumerate(self.pool):
-            if n > inde:
+            if n < inde:
                 break
             print(game[1])
 
@@ -520,7 +533,8 @@ class Evolution:
             scores.append(score)
         return scores
 
-    def random_pool(self):
+    @staticmethod
+    def random_pool():
         game = Game()
         score = game.score()
         return game, score
@@ -543,8 +557,8 @@ class Evolution:
             self.fill_pool()
 
             self.clone()
+            self.shuffle()
             # self.clone()
-            # self.shuffle()
 
             # self.refresh_score()
             self.sort_pool()
@@ -555,7 +569,7 @@ class Evolution:
             stats['scores'] += current_scores
             avg = np.mean(current_scores)
             stats['pool_avg'].append(avg)
-            print(f"Epoch {x:<4} ended with avg: {avg:<4.2f}")
+            print(f"Epoch {x:<4} ended with avg: {avg:<4.2f}, best: {np.max(current_scores):<4.2f}")
 
         plt.figure(figsize=(16, 9))
         plt.scatter(stats['epoch'], stats['scores'], c='m', alpha=0.3, label='Scores')
@@ -564,8 +578,13 @@ class Evolution:
         plt.savefig(f"{self.name}/stats_{self.run_time}")
 
     def clone(self):
+        """
+        Clones random fragments of target board, size is also random
+        Returns:
+
+        """
         for ind, (game, score) in enumerate(self.pool):
-            if random.random() < self.mutation_chance:
+            if random.random() < self.clone_chance:
                 new_game = Game(empty_board=True)
                 new_game.board = game.board.copy()
 
@@ -590,8 +609,28 @@ class Evolution:
                     game.board = new_game.board.copy()
                     self.pool[ind] = (game, new_score)
 
+    def shuffle(self):
+        """
+        Puts random pieces in random places
+        Returns:
+
+        """
+        for ind, (game, score) in enumerate(self.pool):
+            if random.random() < self.shuffle_chance:
+                new_game = Game(empty_board=True)
+                new_game.board = game.board.copy()
+
+                for _ in range(self.shuffle_ammount):
+                    y, x = np.random.randint(0, BOARD_SIZE, 2)
+                    new_game.add(y, x, 'random')
+
+                new_score = new_game.score()
+                if new_score > score:
+                    game.board = new_game.board.copy()
+                    self.pool[ind] = (game, new_score)
+
     def dropout(self):
-        self.pool = self.pool[:int(len(self.pool) / 1.3)]
+        self.pool = self.pool[:int(len(self.pool) * (1 - self.drop_ammount))]
         self.pool = [obj for obj in self.pool if random.random() > self.drop_chance]
 
     def load_pool(self, filepath=None):
@@ -610,7 +649,7 @@ class Evolution:
 if __name__ == "__main__":
     name = "run1"
     alg1 = Evolution(name)
-    alg1.evolution(200)
-    alg1.print_scores(10)
-    alg1.draw_best(3)
+    alg1.evolution(100)
+    alg1.print_scores(5)
+    alg1.draw_best(5)
     alg1.save_pool()

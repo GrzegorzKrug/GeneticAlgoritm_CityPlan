@@ -1,7 +1,9 @@
 from matplotlib import pyplot as plt
+
 import datetime
 import numpy as np
 import random
+import time
 import os
 
 "Game Rules"
@@ -25,6 +27,8 @@ class Game:
             self.board = self.random_board()
         self.base_fields = self.initial_field_list()
 
+        self.home_count = 0
+
         self.put_bank()
         self.base_energy_field()
         self.base_reach()
@@ -39,14 +43,11 @@ class Game:
             element = Road()
         elif figure == 'random':
             pool = [Road, Home, Tower]
-            element = np.random.choice(pool, size=1)[0]()
+            element = np.random.choice(pool, size=1, p=(0.4, 0.4, 0.2))[0]()
         else:
-            raise ValueError(f"Unrecognizes figure type: {figure}")
+            raise ValueError(f"Unrecognized figure type: {figure}")
 
         self.board[y, x] = element
-
-    def random_element(self):
-        pass
 
     def draw(self, save=None, debug_road=False, debug_power=False, more_text=None):
         """
@@ -91,9 +92,9 @@ class Game:
         plt.xlim(limit)
         plt.ylim(limit)
         if more_text:
-            plt.title(f"{more_text}\nScore:{score}")
+            plt.title(f"{more_text}\nHome count: {self.home_count}\nScore: {score}")
         else:
-            plt.title(f"Score:{score}")
+            plt.title(f"Home count: {self.home_count}\nScore: {score}")
 
         if save:
             plt.savefig(f"{save}.png")
@@ -252,7 +253,7 @@ class Game:
                 element.reach = False
                 if type(element) is Home:
                     if element.base:
-                        if 10 < x < 16 and 10 < y < 16:
+                        if 9 < x < 16 and 9 < y < 16:
                             self.board[y, x] = Road()
                             continue
                         try:
@@ -406,11 +407,13 @@ class Game:
 
     def score(self):
         score = 0
+        self.home_count = 0
         self.validate()
         for y, row in enumerate(self.board):
             for x, element in enumerate(row):
                 if type(element) is Home and element.base and element.power and element.reach:
                     score += HOME_SCORE
+                    self.home_count += 1
                 elif type(element) is Tower:
                     score += TOWER_SCORE
                 elif type(element) is Road:
@@ -485,15 +488,15 @@ class Bank(Figure):
 
 class Evolution:
     def __init__(self, name, pool_size=100,
-                 shuffle_chance=0.05, shuffle_ammount=5,
-                 clone_chance=0.12,
-                 mutation_chance=0.1,
-                 drop_chance=0.001, drop_ammount=0.35):
+                 shuffle_chance=0.4, shuffle_ammount_random=4,
+                 clone_chance=0.3,
+                 swap_chance=0.05,
+                 drop_chance=0.003, drop_ammount=0.35):
         self.pool_size = pool_size
         self.shuffle_chance = shuffle_chance
-        self.shuffle_ammount = shuffle_ammount
+        self.shuffle_ammount_random = shuffle_ammount_random
         self.clone_chance = clone_chance
-        self.mutation_chance = mutation_chance
+        self.swap_chance = swap_chance
         self.drop_chance = drop_chance
         self.drop_ammount = drop_ammount
 
@@ -552,15 +555,14 @@ class Evolution:
 
     def evolution(self, epoch=100):
         stats = {'epoch': [], 'max': [], 'pool_avg': [], 'scores': []}
-
+        time0 = time.time()
         for x in range(epoch):
             self.fill_pool()
 
             self.clone()
             self.shuffle()
-            # self.clone()
+            self.swap()
 
-            # self.refresh_score()
             self.sort_pool()
             self.dropout()
 
@@ -569,11 +571,13 @@ class Evolution:
             stats['scores'] += current_scores
             avg = np.mean(current_scores)
             stats['pool_avg'].append(avg)
-            print(f"Epoch {x:<4} ended with avg: {avg:<4.2f}, best: {np.max(current_scores):<4.2f}")
+            print(f"Epoch {x:<5} ended with avg: {avg:<6.2f}, "
+                  f"best_homes: {self.pool[0][0].home_count:<3}, best: {np.max(current_scores):<5.2f}")
 
+        print(f"Evolution took: {(time.time() - time0) / 60:<4.2f} min")
         plt.figure(figsize=(16, 9))
-        plt.scatter(stats['epoch'], stats['scores'], c='m', alpha=0.3, label='Scores')
-        plt.plot(stats['pool_avg'], c='b', label='pool_avg')
+        plt.scatter(stats['epoch'], stats['scores'], c='m', alpha=0.15, label='Scores')
+        plt.plot(stats['pool_avg'], c='b', label='pool_avg', linewidth=3)
         plt.legend(loc='best')
         plt.savefig(f"{self.name}/stats_{self.run_time}")
 
@@ -620,10 +624,42 @@ class Evolution:
                 new_game = Game(empty_board=True)
                 new_game.board = game.board.copy()
 
-                for _ in range(self.shuffle_ammount):
+                for _ in range(np.random.randint(1, self.shuffle_ammount_random)):
                     y, x = np.random.randint(0, BOARD_SIZE, 2)
                     new_game.add(y, x, 'random')
 
+                new_score = new_game.score()
+                if new_score > score:
+                    game.board = new_game.board.copy()
+                    self.pool[ind] = (game, new_score)
+
+    def swap(self):
+        """
+        Swaps random pieces on board
+        Returns:
+
+        """
+        for ind, (game, score) in enumerate(self.pool):
+            if random.random() < self.swap_chance:
+                new_game = Game(empty_board=True)
+                new_game.board = game.board.copy()
+
+                dist_y, dist_x = np.random.randint(0, BOARD_SIZE // 2, 2) + 1
+
+                from_y, from_x, to_y, to_x = 0, 0, 0, 0
+                while abs(from_y - to_y) < dist_y or abs(from_x - to_x) < dist_x \
+                        or from_y + dist_y >= BOARD_SIZE \
+                        or from_x + dist_x >= BOARD_SIZE \
+                        or to_y + dist_y >= BOARD_SIZE \
+                        or to_x + dist_x >= BOARD_SIZE:
+                    from_y, from_x, to_y, to_x = np.random.randint(0, BOARD_SIZE, 4)
+                # From - > Temp
+                # To -> From
+                # Temp -> To
+                temp = new_game.board[from_y:from_y + dist_y, from_x:from_x + dist_x].copy()
+                new_game.board[from_y:from_y + dist_y, from_x:from_x + dist_x] = new_game.board[to_y:to_y + dist_y,
+                                                                                 to_x:to_x + dist_x].copy()
+                new_game.board[to_y:to_y + dist_y, to_x:to_x + dist_x] = temp
                 new_score = new_game.score()
                 if new_score > score:
                     game.board = new_game.board.copy()
@@ -649,7 +685,7 @@ class Evolution:
 if __name__ == "__main__":
     name = "run1"
     alg1 = Evolution(name)
-    alg1.evolution(100)
+    alg1.evolution(1000)
     alg1.print_scores(5)
     alg1.draw_best(5)
     alg1.save_pool()

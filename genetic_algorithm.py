@@ -29,6 +29,19 @@ class Game:
         os.makedirs('pics', exist_ok=True)
         os.makedirs('pics/debug', exist_ok=True)
 
+    def add(self, y, x, figure):
+        figure = str(figure).lower()
+        if figure == 'home':
+            element = Home()
+        elif figure == 'tower':
+            element = Tower()
+        elif figure == 'road':
+            element = Road()
+        else:
+            raise ValueError(f"Unrecognizes figure type: {figure}")
+
+        self.board[y, x] = element
+
     def draw(self, save=None, debug_road=False, debug_power=False):
         """
         Function that draw board.
@@ -145,8 +158,55 @@ class Game:
                 continue
             for new_x in range(x - 4, x + 4 + 1):
                 fields.append((new_y, new_x))
-
+        for field in Game._power_reach_triangle(y, x):
+            fields.append(field)
         return fields
+
+    @staticmethod
+    def _power_reach_triangle(y, x):
+        """
+        Function returns 4 corners (y,x) pair
+        . . .
+          . .
+            .
+        Args:
+            y:
+            x:
+
+        Returns:
+
+        """
+        # right upper corner
+        yield y + 5, x + 5
+        yield y + 5, x + 6
+        yield y + 5, x + 7
+        yield y + 6, x + 5
+        yield y + 6, x + 6
+        yield y + 7, x + 5
+
+        # right bottom corner
+        yield y - 5, x + 5
+        yield y - 5, x + 6
+        yield y - 5, x + 7
+        yield y - 6, x + 5
+        yield y - 6, x + 6
+        yield y - 7, x + 5
+
+        # left bottom corner
+        yield y - 5, x - 5
+        yield y - 5, x - 6
+        yield y - 5, x - 7
+        yield y - 6, x - 5
+        yield y - 6, x - 6
+        yield y - 7, x - 5
+
+        # left upper corner
+        yield y + 5, x - 5
+        yield y + 5, x - 6
+        yield y + 5, x - 7
+        yield y + 6, x - 5
+        yield y + 6, x - 6
+        yield y + 7, x - 5
 
     def validate(self):
         """

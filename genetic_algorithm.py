@@ -1,5 +1,5 @@
 from matplotlib import pyplot as plt
-
+import datetime
 import numpy as np
 import random
 import os
@@ -9,13 +9,16 @@ BOARD_SIZE = 27
 BANK_RANGE = (BOARD_SIZE - 3) // 2
 POWER_RANGE = 8
 
+HOME_SCORE = 10
+ROAD_SCORE = 0
+TOWER_SCORE = -50
+
 HOME_FIX_OVERWRITE = True
 
 
 class Game:
     def __init__(self, empty_board=False):
         # self.board = np.zeros((BOARD_SIZE, BOARD_SIZE))
-        self.score = 0
         if empty_board:
             self.board = self.empty_board()
         else:
@@ -25,9 +28,6 @@ class Game:
         self.put_bank()
         self.base_energy_field()
         self.base_reach()
-
-        os.makedirs('pics', exist_ok=True)
-        os.makedirs('pics/debug', exist_ok=True)
 
     def add(self, y, x, figure):
         figure = str(figure).lower()
@@ -42,7 +42,7 @@ class Game:
 
         self.board[y, x] = element
 
-    def draw(self, save=None, debug_road=False, debug_power=False):
+    def draw(self, save=None, debug_road=False, debug_power=False, more_text=None):
         """
         Function that draw board.
         If save is passed, then images is saved and not shown
@@ -55,14 +55,18 @@ class Game:
         """
         plt.figure(figsize=(8, 8))
         plt.grid()
+        os.makedirs(f"{os.path.dirname(os.path.abspath(save))}", exist_ok=True)
+        score = self.score()
         for y, row in enumerate(self.board):
             for x, element in enumerate(row):
                 if type(element) is Home:
                     if element.base:
-                        if element.reach:
-                            color = element.color
-                        else:
+                        if not element.reach:
                             color = 'k'
+                        elif not element.power:
+                            color = 'r'
+                        else:
+                            color = element.color
                         plt.text(x - 0.1, y + 0.4, element.marker, fontsize=element.size, color=color)
                 else:
                     if not debug_road and type(element) is Road and not debug_power:
@@ -80,12 +84,13 @@ class Game:
         limit = [0, 27]
         plt.xlim(limit)
         plt.ylim(limit)
-        # if debug:
-        #     dist = 27
-        #     plt.plot([0, dist, dist, 0, 0], [0, 0, dist, dist, 0], 'k', '.-')
+        if more_text:
+            plt.title(f"{more_text}\nScore:{score}")
+        else:
+            plt.title(f"Score:{score}")
 
         if save:
-            plt.savefig(f"pics/{save}.png")
+            plt.savefig(f"{save}.png")
             plt.close()
         else:
             plt.show()
@@ -241,7 +246,7 @@ class Game:
                 element.reach = False
                 if type(element) is Home:
                     if element.base:
-                        if 8 < x < 15 and 8 < y < 15:
+                        if 10 < x < 16 and 10 < y < 16:
                             self.board[y, x] = Road()
                             continue
                         try:
@@ -258,17 +263,20 @@ class Game:
                             try:
                                 for field in self.house_fields(y, x):
                                     self.board[field] = Home(base=False)
-                                try:
-                                    check_field = (y + 1, x - 1)
-                                    if type(self.board[check_field]) is Home and self.board[check_field].base:
-                                        self.board[check_field] = Road()
-                                except IndexError:
-                                    pass
                             except IndexError:
                                 self.board[y, x] = Road()
+                                continue
 
                         elif not valid:
                             self.board[y, x] = Road()
+                            continue
+                        try:
+                            check_field = (y + 1, x - 1)
+                            if type(self.board[check_field]) is Home and self.board[check_field].base:
+                                self.board[check_field] = Road()
+                        except IndexError:
+                            pass
+
                     else:
                         "Check pieces that are not foundation, and remove if there is no base in range"
                         try:
@@ -390,6 +398,19 @@ class Game:
                 board[y, x] = board[y, x]()
         return board
 
+    def score(self):
+        score = 0
+        self.validate()
+        for y, row in enumerate(self.board):
+            for x, element in enumerate(row):
+                if type(element) is Home and element.base and element.power and element.reach:
+                    score += HOME_SCORE
+                elif type(element) is Tower:
+                    score += TOWER_SCORE
+                elif type(element) is Road:
+                    score += ROAD_SCORE
+        return score
+
 
 class Figure:
     def __init__(self):
@@ -456,9 +477,140 @@ class Bank(Figure):
         return "B"
 
 
+class Evolution:
+    def __init__(self, name, pool_size=100, shuffle_chance=0.03, mutation_chance=0.1, drop_chance=0.001):
+        self.pool_size = pool_size
+        self.shuffle_chance = shuffle_chance
+        self.mutation_chance = mutation_chance
+        self.drop_chance = drop_chance
+
+        self.name = name
+        dt = datetime.datetime.timetuple(datetime.datetime.now())
+        self.run_time = f"{dt.tm_mon:>02}-{dt.tm_mday:>02}--" \
+                        f"{dt.tm_hour:>02}-{dt.tm_min:>02}-{dt.tm_sec:>02}"
+        os.makedirs(name, exist_ok=True)
+        self.pool = []
+        pool = self.load_pool()
+
+        if pool:
+            self.pool = pool
+        self.fill_pool()
+        self.sort_pool()
+        self.refresh_score()
+
+    def sort_pool(self):
+        self.pool.sort(key=lambda x: x[1], reverse=True)
+
+    def fill_pool(self):
+        while len(self.pool) < self.pool_size:
+            self.pool.append(self.random_pool())
+
+    def print_scores(self, n):
+        for inde, game in enumerate(self.pool):
+            if n > inde:
+                break
+            print(game[1])
+
+    def refresh_score(self):
+        self.pool = [(game, game.score()) for game, score in self.pool]
+
+    def get_scores(self):
+        scores = []
+        for game, score in self.pool:
+            scores.append(score)
+        return scores
+
+    def random_pool(self):
+        game = Game()
+        score = game.score()
+        return game, score
+
+    def draw_best(self, n=1):
+        for x in range(n):
+            self.pool[x][0].draw(save=f"{self.name}/best_{x}")
+
+    def save_pool(self, filepath=None):
+        if filepath:
+            save_to = filepath
+        else:
+            save_to = f'{self.name}/evolution_pool'
+        np.save(save_to, self.pool)
+
+    def evolution(self, epoch=100):
+        stats = {'epoch': [], 'max': [], 'pool_avg': [], 'scores': []}
+
+        for x in range(epoch):
+            self.fill_pool()
+
+            self.clone()
+            # self.clone()
+            # self.shuffle()
+
+            # self.refresh_score()
+            self.sort_pool()
+            self.dropout()
+
+            stats['epoch'] += [x] * len(self.pool)
+            current_scores = self.get_scores()
+            stats['scores'] += current_scores
+            avg = np.mean(current_scores)
+            stats['pool_avg'].append(avg)
+            print(f"Epoch {x:<4} ended with avg: {avg:<4.2f}")
+
+        plt.figure(figsize=(16, 9))
+        plt.scatter(stats['epoch'], stats['scores'], c='m', alpha=0.3, label='Scores')
+        plt.plot(stats['pool_avg'], c='b', label='pool_avg')
+        plt.legend(loc='best')
+        plt.savefig(f"{self.name}/stats_{self.run_time}")
+
+    def clone(self):
+        for ind, (game, score) in enumerate(self.pool):
+            if random.random() < self.mutation_chance:
+                new_game = Game(empty_board=True)
+                new_game.board = game.board.copy()
+
+                target_id = np.random.randint(0, self.pool_size)
+                while target_id == ind:
+                    target_id = np.random.randint(0, self.pool_size)
+
+                y_min, y_max, x_min, x_max = 0, 0, 0, 0
+                while y_min == y_max or x_min == x_max:
+                    # "Iterate until y's and x's are different
+                    target = np.random.randint(0, BOARD_SIZE, 4)
+                    y_min, y_max, x_min, x_max = target
+                    if y_min > y_max:
+                        y_min, y_max = y_max, y_min
+                    if x_min > x_max:
+                        x_min, x_max = x_max, x_min
+
+                target_board = self.pool[target_id][0].board.copy()
+                new_game.board[y_min:y_max, x_min:x_max] = target_board[y_min:y_max, x_min:x_max]
+                new_score = new_game.score()
+                if new_score > score:
+                    game.board = new_game.board.copy()
+                    self.pool[ind] = (game, new_score)
+
+    def dropout(self):
+        self.pool = self.pool[:int(len(self.pool) / 1.3)]
+        self.pool = [obj for obj in self.pool if random.random() > self.drop_chance]
+
+    def load_pool(self, filepath=None):
+        if filepath:
+            load_from = filepath
+        else:
+            load_from = f'{self.name}/evolution_pool.npy'
+        try:
+            pool = list(np.load(load_from, allow_pickle=True))
+        except FileNotFoundError:
+            print(f"Not found pool: {load_from}")
+            pool = None
+        return pool
+
+
 if __name__ == "__main__":
-    game = Game(empty_board=True)
-    game.board[6, 11] = Tower()
-    game.validate()
-    x = 0
-    game.draw(debug_power=True, save=f"{x}_fixed")
+    name = "run1"
+    alg1 = Evolution(name)
+    alg1.evolution(200)
+    alg1.print_scores(10)
+    alg1.draw_best(3)
+    alg1.save_pool()

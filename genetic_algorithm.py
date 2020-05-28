@@ -19,8 +19,11 @@ HOME_FIX_OVERWRITE = True
 
 
 class Game:
+    number = 0
+
     def __init__(self, empty_board=False):
-        # self.board = np.zeros((BOARD_SIZE, BOARD_SIZE))
+        Game.number += 1
+        self.number = Game.number
         if empty_board:
             self.board = self.empty_board()
         else:
@@ -43,7 +46,7 @@ class Game:
             element = Road()
         elif figure == 'random':
             pool = [Road, Home, Tower]
-            element = np.random.choice(pool, size=1, p=(0.3, 0.5, 0.2))[0]()
+            element = np.random.choice(pool, size=1, p=(0.4, 0.55, 0.05))[0]()
         else:
             raise ValueError(f"Unrecognized figure type: {figure}")
 
@@ -309,7 +312,8 @@ class Game:
                 elif type(element) is Tower:
                     pass
                 elif type(element) is Bank:
-                    pass
+                    if not 12 <= y < 15 or 12 <= x < 15:
+                        self.board[y, x] = Road()
                 elif type(element) is Figure:
                     raise ValueError("How did you get here? Base class figure is on board!")
                 else:
@@ -488,13 +492,15 @@ class Bank(Figure):
 
 class Evolution:
     def __init__(self, name, pool_size=100,
-                 shuffle_chance=0.4, shuffle_ammount_random=4,
-                 clone_chance=0.3,
+                 shuffle_chance=0.4, shuffle_ammount_random=25,
+                 move_area_chance=0.2,
+                 clone_chance=0.1,
                  swap_chance=0.05,
                  drop_chance=0.003, drop_ammount=0.1):
         self.pool_size = pool_size
         self.shuffle_chance = shuffle_chance
         self.shuffle_ammount_random = shuffle_ammount_random
+        self.move_area_chance = move_area_chance
         self.clone_chance = clone_chance
         self.swap_chance = swap_chance
         self.drop_chance = drop_chance
@@ -553,34 +559,6 @@ class Evolution:
             save_to = f'{self.name}/evolution_pool'
         np.save(save_to, self.pool)
 
-    def evolution(self, epoch=100):
-        stats = {'epoch': [], 'max': [], 'pool_avg': [], 'scores': []}
-        time0 = time.time()
-        for x in range(epoch):
-            self.fill_pool()
-
-            self.clone()
-            self.shuffle()
-            self.swap()
-
-            self.sort_pool()
-            self.dropout()
-
-            stats['epoch'] += [x] * len(self.pool)
-            current_scores = self.get_scores()
-            stats['scores'] += current_scores
-            avg = np.mean(current_scores)
-            stats['pool_avg'].append(avg)
-            print(f"Epoch {x:<5} ended with avg: {avg:>8.2f}, "
-                  f"best_homes: {self.pool[0][0].home_count:>3}, best: {np.max(current_scores):<7.2f}")
-
-        print(f"Evolution took: {(time.time() - time0) / 60:<4.2f} min")
-        plt.figure(figsize=(16, 9))
-        plt.scatter(stats['epoch'], stats['scores'], c='m', alpha=0.15, label='Scores')
-        plt.plot(stats['pool_avg'], c='b', label='pool_avg', linewidth=3)
-        plt.legend(loc='best')
-        plt.savefig(f"{self.name}/stats_{self.run_time}")
-
     def clone(self):
         """
         Clones random fragments of target board, size is also random
@@ -633,6 +611,44 @@ class Evolution:
                     game.board = new_game.board.copy()
                     self.pool[ind] = (game, new_score)
 
+    def move_areas(self):
+        """
+        Swaps random pieces on board
+        Returns:
+
+        """
+        for ind, (game, score) in enumerate(self.pool):
+            if random.random() < self.move_area_chance:
+                new_game = Game(empty_board=True)
+                new_game.board = game.board.copy()
+
+                index_y, index_x = 0, 0
+                direction_y, direction_x = 0, 0
+                size_y, size_x = 0, 0
+                while not 0 <= index_y + size_y < BOARD_SIZE \
+                        or not 0 <= index_y + direction_y + size_y < BOARD_SIZE \
+                        or not 0 <= index_y + direction_y < BOARD_SIZE \
+                        or not 0 <= index_x + size_x < BOARD_SIZE \
+                        or not 0 <= index_x + direction_x + size_x < BOARD_SIZE \
+                        or not 0 <= index_x + direction_x < BOARD_SIZE \
+                        or not direction_y and not direction_x:
+                    index_y, index_x = np.random.randint(0, BOARD_SIZE, 2)
+                    direction_y, direction_x = np.random.randint(-2, 3, 2)
+                    size_y, size_x = np.random.randint(1, BOARD_SIZE // 4, 2)
+
+                for curr_y in range(0, size_y):
+                    for curr_x in range(0, size_x):
+                        new_game.board[index_y + curr_y, index_x + curr_x] = Road()
+
+                new_game.board[index_y + direction_y:index_y + direction_y + size_y,
+                index_x + direction_x:index_x + direction_x + size_x] = \
+                    game.board[index_y:index_y + size_y, index_x:index_x + size_x].copy()
+
+                new_score = new_game.score()
+                if new_score >= score:
+                    game.board = new_game.board.copy()
+                    self.pool[ind] = (game, new_score)
+
     def swap(self):
         """
         Swaps random pieces on board
@@ -681,11 +697,70 @@ class Evolution:
             pool = None
         return pool
 
+    @staticmethod
+    def moving_average(array, window_size=None, agents_num=1):
+        size = len(array)
+
+        if not window_size or window_size and size < window_size:
+            window_size = size // 20
+
+        while len(array) % window_size or window_size % agents_num:
+            window_size -= 1
+            if window_size < 1:
+                window_size = 1
+                break
+
+        output = []
+
+        for sample_num in range(agents_num - 1, len(array), agents_num):
+            if sample_num < window_size:
+                output.append(np.mean(array[:sample_num + 1]))
+            else:
+                output.append(np.mean(array[sample_num - window_size: sample_num + 1]))
+
+        if len(array) % window_size:
+            output.append(np.mean(array[-window_size:]))
+
+        return output
+
+    def evolution(self, epoch=100):
+        stats = {'epoch': [], 'max': [], 'pool_avg': [], 'scores': []}
+        time0 = time.time()
+        for x in range(epoch):
+            if not x % 100 and x != 0:
+                self.save_pool()
+            self.fill_pool()
+
+            self.clone()
+            self.shuffle()
+            # self.swap()
+            self.move_areas()
+
+            self.sort_pool()
+            self.dropout()
+
+            stats['epoch'] += [x] * len(self.pool)
+            current_scores = self.get_scores()
+            stats['scores'] += current_scores
+            avg = np.mean(current_scores)
+            stats['pool_avg'].append(avg)
+            print(f"Epoch {x:<5} ended with avg: {avg:>8.2f}, "
+                  f"good_homes: {self.pool[0][0].home_count:>3}, best: {np.max(current_scores):<7.2f}")
+
+        print(f"Evolution took: {(time.time() - time0) / 60:<4.2f} min")
+        plt.figure(figsize=(16, 9))
+        plt.scatter(stats['epoch'], stats['scores'], c='m', alpha=0.15, label='Scores')
+        plt.plot(stats['pool_avg'], c='b', label='local_avg', linewidth=2)
+        plt.plot(self.moving_average(stats['pool_avg'], agents_num=1),
+                 c=(0.1, 1, 0.3), label='global_avg', linewidth=4)
+        plt.legend(loc='best')
+        plt.savefig(f"{self.name}/stats_{self.run_time}")
+
 
 if __name__ == "__main__":
-    name = "run2"
-    alg1 = Evolution(name)
-    alg1.evolution(1500)
+    name = "run5"
+    alg1 = Evolution(name, pool_size=10)
+    alg1.evolution(5000)
+    alg1.save_pool()
     alg1.print_scores(5)
     alg1.draw_best(5)
-    alg1.save_pool()

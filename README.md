@@ -1,27 +1,43 @@
 # GeneticAlgoritm
-Solution to find most optimal buildings positions.
-Generates optimal building around Bank.
-Idea came from game "They are billions"
+####Problem
+Find optimal city plan
+#
+## Evolution mechanics implemented
+* Clone
 
-## Best Solution 
-Best city plan looks like triangle symmetry, we got 3 major paths. Algoritm is very heavy loaded, minor human adjustment is indicated.
+    Random areas of board are cloned from target to current agent
 
-### Legend:
-* **Score** - the more the better, we add points for every green house
-* **Blank** - *path*
-	* **red dot** - path without connection
-* **Triangle** - *Energy Tower*
-* **Stars** - *Bank* (must have road around itself)
-* **Squares** - *Houses*, every house is builded of 4 parts
-	* **green**: ok
-	* **yellow**: squares are not fully connected (ignored)
-	* **black**: house has no path to outer side
+* Swap 
 
-![Alt](/City_Plan/Gold.png?raw=true "Golden Solution")
+    Random areas positions are swaped inside agent
+    
+* Shuffle
 
-# Please ignore minor issues 
-PEP8. 
-This was my first project. Many things could be done better, including readability and syntax. Operations complexity, better approach to problem, better mutation methods.
+    In random positions random elements are places
+    
+All evolutions are rejected if they decrease score
+
+* Drop out
+    
+    Every agent has chance to not survive. At each epoch, 10% of population is removed and replaced with new random agents. 
+### First results
+Best results so far.
+
+![Best home from run](./run2/best_0.png)
+
+![Scores](./run2/stats_05-27--23-43-56.png)
+
+#### Legend:
+Tower - power
+Bank - always in center
+Homes - green are good, black has no path reach, red has no power
 
 
-I did not want to use any GA library, I just wanted to train myself in python.
+### Requriements
+```
+conda create -n genetic python=3.8
+conda activate genetic
+pip install -r requrements.txt
+```
+#### Next steps
+Add outer line for 'real' electricity input, it will make problem harder.

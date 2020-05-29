@@ -308,7 +308,7 @@ class Game:
                 elif type(element) is Tower:
                     pass
                 elif type(element) is Bank:
-                    if not 12 <= y < 15 or 12 <= x < 15:
+                    if not 12 <= y < 15 or not 12 <= x < 15:
                         self.board[y, x] = Road()
                 elif type(element) is Figure:
                     raise ValueError("How did you get here? Base class figure is on board!")
@@ -488,11 +488,11 @@ class Bank(Figure):
 
 class Evolution:
     def __init__(self, name, pool_size=100,
-                 shuffle_chance=0.4, shuffle_ammount_random=25,
+                 shuffle_chance=0.2, shuffle_ammount_random=15,
                  move_area_chance=0.2,
                  clone_chance=0.1,
                  swap_chance=0.05,
-                 drop_chance=0.003, drop_ammount=0.1):
+                 drop_chance=0.15, drop_ammount_flat=0.1, drop_every=250):
         self.pool_size = pool_size
         self.shuffle_chance = shuffle_chance
         self.shuffle_ammount_random = shuffle_ammount_random
@@ -500,7 +500,8 @@ class Evolution:
         self.clone_chance = clone_chance
         self.swap_chance = swap_chance
         self.drop_chance = drop_chance
-        self.drop_ammount = drop_ammount
+        self.drop_ammount_flat = drop_ammount_flat
+        self.drop_every = drop_every
 
         self.name = name
         dt = datetime.datetime.timetuple(datetime.datetime.now())
@@ -554,6 +555,7 @@ class Evolution:
         else:
             save_to = f'{self.name}/evolution_pool'
         np.save(save_to, self.pool)
+        print(f"Saved pool: {save_to}")
 
     def clone(self):
         """
@@ -678,8 +680,8 @@ class Evolution:
                     self.pool[ind] = (game, new_score)
 
     def dropout(self):
-        self.pool = self.pool[:int(len(self.pool) * (1 - self.drop_ammount))]
-        self.pool = [obj for obj in self.pool if random.random() > self.drop_chance]
+        self.pool = self.pool[:int(len(self.pool) * (1 - self.drop_ammount_flat))]
+        self.pool = [obj for ind, obj in enumerate(self.pool) if random.random() > self.drop_chance or ind == 0]
 
     def load_pool(self, filepath=None):
         if filepath:
@@ -732,8 +734,9 @@ class Evolution:
             # self.swap()
             self.move_areas()
 
-            self.sort_pool()
-            self.dropout()
+            if not x % self.drop_every and x != 0:
+                self.sort_pool()
+                self.dropout()
 
             stats['epoch'] += [x] * len(self.pool)
             current_scores = self.get_scores()
@@ -743,9 +746,11 @@ class Evolution:
             print(f"Epoch {x:<5} ended with avg: {avg:>8.2f}, "
                   f"good_homes: {self.pool[0][0].home_count:>3}, best: {np.max(current_scores):<7.2f}")
 
+        self.sort_pool()
+
         print(f"Evolution took: {(time.time() - time0) / 60:<4.2f} min")
         plt.figure(figsize=(16, 9))
-        plt.scatter(stats['epoch'], stats['scores'], c='m', alpha=0.15, label='Scores')
+        plt.scatter(stats['epoch'], stats['scores'], c='m', alpha=0.1, s=10, label='Scores')
         plt.plot(stats['pool_avg'], c='b', label='local_avg', linewidth=2)
         plt.plot(self.moving_average(stats['pool_avg'], agents_num=1),
                  c=(0.1, 1, 0.3), label='global_avg', linewidth=4)
@@ -754,9 +759,9 @@ class Evolution:
 
 
 if __name__ == "__main__":
-    name = "run5"
-    alg1 = Evolution(name, pool_size=10)
-    alg1.evolution(5000)
+    name = "run6_drop_every_100"
+    alg1 = Evolution(name, pool_size=100, drop_every=50)
+    alg1.evolution(500)
     alg1.save_pool()
     alg1.print_scores(5)
     alg1.draw_best(5)

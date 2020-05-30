@@ -7,13 +7,13 @@ import time
 import os
 
 "Game Rules"
-BOARD_SIZE = 27
-BANK_RANGE = (BOARD_SIZE - 3) // 2
+BOARD_SIZE = 29
+OUTER_ROAD_WIDTH = 1
 POWER_RANGE = 8
 
 HOME_SCORE = 10
 ROAD_SCORE = 0
-TOWER_SCORE = -20
+TOWER_SCORE = -10
 
 HOME_FIX_OVERWRITE = True
 
@@ -87,7 +87,7 @@ class Game:
                     power = self.energy[y, x]
                     plt.text(x, y, '⚡', fontsize=20, color='b' if power == 1 else 'r')
 
-        limit = [0, 27]
+        limit = [0, BOARD_SIZE]
         plt.xlim(limit)
         plt.ylim(limit)
         if more_text:
@@ -102,22 +102,22 @@ class Game:
             plt.show()
 
     def put_bank(self):
-        self.board[11:16, 11:16] = Road()
-        self.board[12:15, 12:15] = Bank()
+        self.board[12:17, 12:17] = Road()
+        self.board[13:16, 13:16] = Bank()
 
     def base_energy_field(self):
         self.energy = np.zeros((BOARD_SIZE, BOARD_SIZE), dtype=int)
-        self.energy[0:27, 0:POWER_RANGE] = 1
-        self.energy[0:27, 27 - POWER_RANGE:27] = 1
-        self.energy[0:POWER_RANGE, 0:27] = 1
-        self.energy[27 - POWER_RANGE:27, 0:27] = 1
+        self.energy[0:BOARD_SIZE, 0] = 1
+        self.energy[0:BOARD_SIZE, BOARD_SIZE - 1] = 1
+        self.energy[0, 0:BOARD_SIZE] = 1
+        self.energy[BOARD_SIZE - 1, 0:BOARD_SIZE] = 1
 
     def base_reach(self):
         self.reach = np.zeros((BOARD_SIZE, BOARD_SIZE), dtype=int)
-        self.reach[0, 0:27] = 1
-        self.reach[26, 0:27] = 1
-        self.reach[0:27, 0] = 1
-        self.reach[0:27, 26] = 1
+        self.reach[0:BOARD_SIZE, 0] = 1
+        self.reach[0:BOARD_SIZE, BOARD_SIZE - 1] = 1
+        self.reach[0, 0:BOARD_SIZE] = 1
+        self.reach[BOARD_SIZE - 1, 0:BOARD_SIZE] = 1
 
     @staticmethod
     def house_fields(a, b):
@@ -252,7 +252,9 @@ class Game:
                 element.reach = False
                 if type(element) is Home:
                     if element.base:
-                        if 9 < x < 16 and 9 < y < 16:
+                        if y == 0 or y == 27 \
+                                or x == 0 or x == 27 \
+                                or 10 < x < 17 and 10 < y < 17:
                             self.board[y, x] = Road()
                             continue
                         try:
@@ -308,7 +310,7 @@ class Game:
                 elif type(element) is Tower:
                     pass
                 elif type(element) is Bank:
-                    if not 12 <= y < 15 or not 12 <= x < 15:
+                    if not 13 <= y < 16 or not 13 <= x < 16:
                         self.board[y, x] = Road()
                 elif type(element) is Figure:
                     raise ValueError("How did you get here? Base class figure is on board!")
@@ -757,9 +759,9 @@ class Evolution:
 
 
 if __name__ == "__main__":
-    name = "run8"
-    alg1 = Evolution(name, pool_size=50, drop_every=100)
-    alg1.evolution(1000)
+    name = "run_10"
+    alg1 = Evolution(name, pool_size=50, drop_every=250)
+    alg1.evolution(10000)
     alg1.save_pool()
     alg1.print_scores(15)
     alg1.draw_best(15)

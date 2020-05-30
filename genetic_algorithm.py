@@ -489,13 +489,14 @@ class Bank(Figure):
 
 
 class Evolution:
-    def __init__(self, name, pool_size=100,
+    def __init__(self, name, pool_size=100, max_pool=200,
                  shuffle_chance=0.6, shuffle_ammount_random=10,
                  move_area_chance=0.3,
                  clone_chance=0.1,
                  swap_chance=0.05,
-                 drop_chance=0.15, drop_ammount_flat=0.1, drop_every=250):
+                 drop_chance=0.1, drop_ammount_flat=0.1, drop_every=250):
         self.pool_size = pool_size
+        self.max_pool = max_pool
         self.shuffle_chance = shuffle_chance
         self.shuffle_ammount_random = shuffle_ammount_random
         self.move_area_chance = move_area_chance
@@ -523,14 +524,18 @@ class Evolution:
         self.pool.sort(key=lambda x: x[1], reverse=True)
 
     def fill_pool(self):
+        while len(self.pool) > self.max_pool:
+            self.pool = self.pool[0:self.max_pool]
+
         while len(self.pool) < self.pool_size:
             self.pool.append(self.random_pool())
 
     def print_scores(self, n):
-        for inde, game in enumerate(self.pool):
+        for inde, (game, score) in enumerate(self.pool):
             if n < inde:
                 break
-            print(game[1])
+            game.score()
+            print(game.home_count)
 
     def refresh_score(self):
         self.pool = [(game, game.score()) for game, score in self.pool]
@@ -590,6 +595,8 @@ class Evolution:
                 if new_score >= score:
                     game.board = new_game.board.copy()
                     self.pool[ind] = (game, new_score)
+                else:
+                    self.pool.append((new_game, new_score))
 
     def shuffle(self):
         """
@@ -610,6 +617,8 @@ class Evolution:
                 if new_score >= score:
                     game.board = new_game.board.copy()
                     self.pool[ind] = (game, new_score)
+                else:
+                    self.pool.append((new_game, new_score))
 
     def move_areas(self):
         """
@@ -648,6 +657,8 @@ class Evolution:
                 if new_score >= score:
                     game.board = new_game.board.copy()
                     self.pool[ind] = (game, new_score)
+                else:
+                    self.pool.append((new_game, new_score))
 
     def swap(self):
         """
@@ -680,6 +691,8 @@ class Evolution:
                 if new_score >= score:
                     game.board = new_game.board.copy()
                     self.pool[ind] = (game, new_score)
+                else:
+                    self.pool.append((new_game, new_score))
 
     def dropout(self):
         self.pool = self.pool[:int(len(self.pool) * (1 - self.drop_ammount_flat))]
@@ -745,7 +758,7 @@ class Evolution:
             stats['scores'] += current_scores
             avg = np.mean(current_scores)
             stats['pool_avg'].append(avg)
-            print(f"Epoch {x:<5} ended with avg: {avg:>8.2f}, "
+            print(f"Epoch {x:<5} ended with avg: {avg:>8.2f}, pool_size: {len(self.pool):>4}, "
                   f"good_homes: {self.pool[0][0].home_count:>3}, best: {np.max(current_scores):<7.2f}")
 
         print(f"Evolution took: {(time.time() - time0) / 60:<4.2f} min")
@@ -760,8 +773,8 @@ class Evolution:
 
 if __name__ == "__main__":
     name = "run_10"
-    alg1 = Evolution(name, pool_size=50, drop_every=250)
-    alg1.evolution(10000)
+    alg1 = Evolution(name, pool_size=5, max_pool=40, drop_every=100)
+    alg1.evolution(1000)
     alg1.save_pool()
-    alg1.print_scores(15)
+    alg1.print_scores(10)
     alg1.draw_best(15)

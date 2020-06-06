@@ -1,6 +1,7 @@
 from matplotlib import pyplot as plt
 
 import datetime
+import re
 import numpy as np
 import random
 import time
@@ -13,7 +14,7 @@ POWER_RANGE = 8
 
 HOME_SCORE = 10
 ROAD_SCORE = 0
-TOWER_SCORE = -6
+TOWER_SCORE = -5
 
 HOME_FIX_OVERWRITE = True
 
@@ -42,7 +43,7 @@ class Game:
             element = Road()
         elif figure == 'random':
             pool = [Road, Home, Tower]
-            element = np.random.choice(pool, size=1, p=(0.4, 0.55, 0.05))[0]()
+            element = np.random.choice(pool, size=1, p=(0.3, 0.4, 0.3))[0]()
         else:
             raise ValueError(f"Unrecognized figure type: {figure}")
 
@@ -493,11 +494,12 @@ class Bank(Figure):
 
 class Evolution:
     def __init__(self, name, pool_size=100, max_pool=200,
-                 shuffle_chance=0.7, shuffle_ammount_random=5,
-                 move_area_chance=0.5,
+                 shuffle_chance=0.4, shuffle_ammount_random=10,
+                 move_area_chance=0.4,
                  clone_chance=0.15,
                  swap_chance=0.01,
-                 drop_chance=0.15, drop_ammount_flat=0.2, drop_every=250):
+                 drop_chance=0.15, drop_ammount_flat=0.2, drop_every=250,
+                 child_score_tolerance=50):
         self.pool_size = pool_size
         self.max_pool = max_pool
         self.shuffle_chance = shuffle_chance
@@ -508,6 +510,7 @@ class Evolution:
         self.drop_chance = drop_chance
         self.drop_ammount_flat = drop_ammount_flat
         self.drop_every = drop_every
+        self.child_score_tolerance = child_score_tolerance
 
         self.name = name
         dt = datetime.datetime.timetuple(datetime.datetime.now())
@@ -526,11 +529,22 @@ class Evolution:
     def sort_pool(self):
         self.pool.sort(key=lambda x: x[1], reverse=True)
 
+    def load_csv(self, path):
+        game = Game(empty_board=True)
+        with open(path) as file:
+            for y, line in enumerate(file):
+                row = re.split(r'[;\n]', line)
+                for x, num in enumerate(row):
+                    if num == '1':
+                        game.add(y + 1, x + 1, 'home')
+                    elif num == '2':
+                        game.add(y + 1, x + 1, 'tower')
+        self.pool = [(game, game.score())]
+
     def fill_pool(self):
         while len(self.pool) > self.max_pool:
-            self.dropout(flat=0.3)
             while len(self.pool) > self.pool_size:
-                self.dropout(flat=0.0)
+                self.dropout(flat=0.1)
 
         while len(self.pool) < self.pool_size:
             self.pool.append(self.random_pool())
@@ -624,7 +638,7 @@ class Evolution:
                 if new_score >= score:
                     game.board = new_game.board.copy()
                     self.pool[ind] = (game, new_score)
-                # else:
+                # elif score - new_score <= self.child_score_tolerance:
                 #     self.pool.append((new_game, new_score))
 
     def move_areas(self):
@@ -650,7 +664,7 @@ class Evolution:
                         or not 0 <= index_x + direction_x < BOARD_SIZE \
                         or not direction_y and not direction_x:
                     index_y, index_x = np.random.randint(0, BOARD_SIZE, 2)
-                    direction_y, direction_x = np.random.randint(-2, 3, 2)
+                    direction_y, direction_x = np.random.randint(-4, 5, 2)
                     size_y, size_x = np.random.randint(1, BOARD_SIZE // 4, 2)
 
                 for curr_y in range(0, size_y):
@@ -665,8 +679,8 @@ class Evolution:
                 if new_score >= score:
                     game.board = new_game.board.copy()
                     self.pool[ind] = (game, new_score)
-                # else:
-                #     self.pool.append((new_game, new_score))
+                elif score - new_score <= self.child_score_tolerance:
+                    self.pool.append((new_game, new_score))
 
     def swap(self):
         """
@@ -699,7 +713,7 @@ class Evolution:
                 if new_score >= score:
                     game.board = new_game.board.copy()
                     self.pool[ind] = (game, new_score)
-                else:
+                elif score - new_score <= self.child_score_tolerance:
                     self.pool.append((new_game, new_score))
 
     def dropout(self, flat=0.0):
@@ -754,16 +768,18 @@ class Evolution:
                 break
             if not x % 100 and x != 0:
                 self.save_pool()
-            self.fill_pool()
-
-            self.clone()
-            self.shuffle()
-            # self.swap()
-            self.move_areas()
-            self.sort_pool()
 
             if not x % self.drop_every and x != 0:
                 self.dropout(flat=self.drop_ammount_flat)
+
+            self.fill_pool()
+
+            # self.clone()
+            # self.swap()
+            self.shuffle()
+            self.move_areas()
+
+            self.sort_pool()
 
             stats['epoch'] += [x] * len(self.pool)
             current_scores = self.get_scores()
@@ -788,9 +804,16 @@ class Evolution:
 
 if __name__ == "__main__":
     name = "run4"
-    alg1 = Evolution(name, pool_size=15, max_pool=20, drop_every=100, drop_ammount_flat=0.3, swap_chance=0.001)
-    alg1.evolution(10000, timeout=30 * 60)
+    alg1 = Evolution(name, pool_size=20, max_pool=100, drop_every=500, drop_ammount_flat=0.3, drop_chance=0.02,
+                     swap_chance=0.003, child_score_tolerance=300)
+    alg1.evolution(5000, timeout=10 * 60)
     alg1.save_pool()
 
-    alg1.print_scores(10)
-    alg1.draw_best(10)
+    try:
+        alg1.print_scores(10)
+    except IndexError:
+        pass
+    try:
+        alg1.draw_best(10)
+    except IndexError:
+        pass

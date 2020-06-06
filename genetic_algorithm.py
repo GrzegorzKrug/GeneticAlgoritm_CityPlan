@@ -13,7 +13,7 @@ POWER_RANGE = 8
 
 HOME_SCORE = 10
 ROAD_SCORE = 0
-TOWER_SCORE = -10
+TOWER_SCORE = -6
 
 HOME_FIX_OVERWRITE = True
 
@@ -493,12 +493,11 @@ class Bank(Figure):
 
 class Evolution:
     def __init__(self, name, pool_size=100, max_pool=200,
-                 shuffle_chance=0.5, shuffle_ammount_random=5,
-                 move_area_chance=0.7,
-                 move_area_chance=0.7,
-                 clone_chance=0.1,
-                 swap_chance=0.1,
-                 drop_chance=0.1, drop_ammount_flat=0.2, drop_every=250):
+                 shuffle_chance=0.7, shuffle_ammount_random=5,
+                 move_area_chance=0.5,
+                 clone_chance=0.15,
+                 swap_chance=0.01,
+                 drop_chance=0.15, drop_ammount_flat=0.2, drop_every=250):
         self.pool_size = pool_size
         self.max_pool = max_pool
         self.shuffle_chance = shuffle_chance
@@ -714,6 +713,7 @@ class Evolution:
         else:
             load_from = f'{self.name}/evolution_pool.npy'
         try:
+            print(f"Loading: {load_from}")
             pool = list(np.load(load_from, allow_pickle=True))
         except FileNotFoundError:
             print(f"Not found pool: {load_from}")
@@ -773,6 +773,9 @@ class Evolution:
             print(f"Epoch {x:<5} ended with avg: {avg:>8.2f}, pool_size: {len(self.pool):>4}, "
                   f"good_homes: {self.pool[0][0].home_count:>3}, best: {np.max(current_scores):<7.2f}")
 
+        self.refresh_score()
+        self.sort_pool()
+
         print(f"Evolution took: {(time.time() - time0) / 60:<4.2f} min")
         plt.figure(figsize=(16, 9))
         plt.scatter(stats['epoch'], stats['scores'], c=[(0.4, 0.4, 0.1)], alpha=0.3, s=10, label='Scores')
@@ -785,8 +788,9 @@ class Evolution:
 
 if __name__ == "__main__":
     name = "run4"
-    alg1 = Evolution(name, pool_size=10, max_pool=20, drop_every=100, drop_ammount_flat=0.3, swap_chance=0.001)
-    alg1.evolution(10000, timeout=5 * 60)
+    alg1 = Evolution(name, pool_size=15, max_pool=20, drop_every=100, drop_ammount_flat=0.3, swap_chance=0.001)
+    alg1.evolution(10000, timeout=30 * 60)
     alg1.save_pool()
+
     alg1.print_scores(10)
     alg1.draw_best(10)

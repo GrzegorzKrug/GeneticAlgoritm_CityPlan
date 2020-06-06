@@ -15,7 +15,8 @@ Find optimal city plan
 
     In random positions random elements are places
     
-All evolutions are rejected if they decrease score
+Evolutions are rejected if they decrease score, only swap persists.
+
 
 * Drop out
     
@@ -23,9 +24,9 @@ All evolutions are rejected if they decrease score
 ### First results
 Best results so far.
 
-![Best home from run](./run2/best_0.png)
+![Best home from run](./run4/best_0.png)
 
-![Scores](./run2/stats_05-27--23-43-56.png)
+![Scores](./run4/stats_06-06--16-03-30.png)
 
 #### Legend:
 Tower - power

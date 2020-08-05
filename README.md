@@ -13,7 +13,7 @@ Find optimal city plan
     
 * Shuffle
 
-    In random positions random elements are places
+    In random positions random elements are placed
     
 All evolutions are rejected if they decrease score
 

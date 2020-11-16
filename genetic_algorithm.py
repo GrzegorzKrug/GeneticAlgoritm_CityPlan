@@ -1,19 +1,20 @@
 from matplotlib import pyplot as plt
 
 import datetime
+import re
 import numpy as np
 import random
 import time
 import os
 
 "Game Rules"
-BOARD_SIZE = 27
-BANK_RANGE = (BOARD_SIZE - 3) // 2
+BOARD_SIZE = 29
+OUTER_ROAD_WIDTH = 1
 POWER_RANGE = 8
 
 HOME_SCORE = 10
 ROAD_SCORE = 0
-TOWER_SCORE = -20
+TOWER_SCORE = -5
 
 HOME_FIX_OVERWRITE = True
 
@@ -42,7 +43,7 @@ class Game:
             element = Road()
         elif figure == 'random':
             pool = [Road, Home, Tower]
-            element = np.random.choice(pool, size=1, p=(0.4, 0.55, 0.05))[0]()
+            element = np.random.choice(pool, size=1, p=(0.3, 0.4, 0.3))[0]()
         else:
             raise ValueError(f"Unrecognized figure type: {figure}")
 
@@ -87,7 +88,7 @@ class Game:
                     power = self.energy[y, x]
                     plt.text(x, y, '⚡', fontsize=20, color='b' if power == 1 else 'r')
 
-        limit = [0, 27]
+        limit = [0, BOARD_SIZE]
         plt.xlim(limit)
         plt.ylim(limit)
         if more_text:
@@ -102,22 +103,22 @@ class Game:
             plt.show()
 
     def put_bank(self):
-        self.board[11:16, 11:16] = Road()
-        self.board[12:15, 12:15] = Bank()
+        self.board[12:17, 12:17] = Road()
+        self.board[13:16, 13:16] = Bank()
 
     def base_energy_field(self):
         self.energy = np.zeros((BOARD_SIZE, BOARD_SIZE), dtype=int)
-        self.energy[0:27, 0:POWER_RANGE] = 1
-        self.energy[0:27, 27 - POWER_RANGE:27] = 1
-        self.energy[0:POWER_RANGE, 0:27] = 1
-        self.energy[27 - POWER_RANGE:27, 0:27] = 1
+        self.energy[0:BOARD_SIZE, 0] = 1
+        self.energy[0:BOARD_SIZE, BOARD_SIZE - 1] = 1
+        self.energy[0, 0:BOARD_SIZE] = 1
+        self.energy[BOARD_SIZE - 1, 0:BOARD_SIZE] = 1
 
     def base_reach(self):
         self.reach = np.zeros((BOARD_SIZE, BOARD_SIZE), dtype=int)
-        self.reach[0, 0:27] = 1
-        self.reach[26, 0:27] = 1
-        self.reach[0:27, 0] = 1
-        self.reach[0:27, 26] = 1
+        self.reach[0:BOARD_SIZE, 0] = 1
+        self.reach[0:BOARD_SIZE, BOARD_SIZE - 1] = 1
+        self.reach[0, 0:BOARD_SIZE] = 1
+        self.reach[BOARD_SIZE - 1, 0:BOARD_SIZE] = 1
 
     @staticmethod
     def house_fields(a, b):
@@ -127,11 +128,16 @@ class Game:
 
     @staticmethod
     def initial_field_list():
+        """
+        Checking this fields first
+        Returns:
+
+        """
         area = np.zeros((BOARD_SIZE, BOARD_SIZE), dtype=int)
-        area[0:27, 0:POWER_RANGE] = 1
-        area[0:27, 27 - POWER_RANGE:27] = 1
-        area[0:POWER_RANGE, 0:27] = 1
-        area[27 - POWER_RANGE:27, 0:27] = 1
+        area[0:BOARD_SIZE, 0] = 1
+        area[0:BOARD_SIZE, BOARD_SIZE - 1] = 1
+        area[0, 0:BOARD_SIZE] = 1
+        area[BOARD_SIZE - 1, 0:BOARD_SIZE] = 1
         out = []
         for y, row in enumerate(area):
             for x, val in enumerate(row):
@@ -252,7 +258,9 @@ class Game:
                 element.reach = False
                 if type(element) is Home:
                     if element.base:
-                        if 9 < x < 16 and 9 < y < 16:
+                        if y == 0 or y == 27 \
+                                or x == 0 or x == 27 \
+                                or 10 < x < 17 and 10 < y < 17:
                             self.board[y, x] = Road()
                             continue
                         try:
@@ -308,7 +316,7 @@ class Game:
                 elif type(element) is Tower:
                     pass
                 elif type(element) is Bank:
-                    if not 12 <= y < 15 or not 12 <= x < 15:
+                    if not 13 <= y < 16 or not 13 <= x < 16:
                         self.board[y, x] = Road()
                 elif type(element) is Figure:
                     raise ValueError("How did you get here? Base class figure is on board!")
@@ -344,13 +352,11 @@ class Game:
                     if not element.power and self.energy[y, x] == 1:
                         element.power = True
                         for field in self.power_reach_field(y, x):
-                            try:
+                            _curr_y, _curr_x = field
+                            if 0 <= _curr_y < BOARD_SIZE and 0 <= _curr_x < BOARD_SIZE:
                                 self.energy[field] = 1
                                 if type(self.board[field]) is Tower:
                                     new_fields.append(field)
-
-                            except IndexError:
-                                pass
 
                 elif type(element) is Home:
                     pass
@@ -487,13 +493,15 @@ class Bank(Figure):
 
 
 class Evolution:
-    def __init__(self, name, pool_size=100,
-                 shuffle_chance=0.6, shuffle_ammount_random=10,
-                 move_area_chance=0.3,
-                 clone_chance=0.1,
-                 swap_chance=0.05,
-                 drop_chance=0.15, drop_ammount_flat=0.1, drop_every=250):
+    def __init__(self, name, pool_size=100, max_pool=200,
+                 shuffle_chance=0.4, shuffle_ammount_random=10,
+                 move_area_chance=0.4,
+                 clone_chance=0.15,
+                 swap_chance=0.01,
+                 drop_chance=0.15, drop_ammount_flat=0.2, drop_every=250,
+                 child_score_tolerance=50):
         self.pool_size = pool_size
+        self.max_pool = max_pool
         self.shuffle_chance = shuffle_chance
         self.shuffle_ammount_random = shuffle_ammount_random
         self.move_area_chance = move_area_chance
@@ -502,6 +510,7 @@ class Evolution:
         self.drop_chance = drop_chance
         self.drop_ammount_flat = drop_ammount_flat
         self.drop_every = drop_every
+        self.child_score_tolerance = child_score_tolerance
 
         self.name = name
         dt = datetime.datetime.timetuple(datetime.datetime.now())
@@ -514,21 +523,38 @@ class Evolution:
         if pool:
             self.pool = pool
         self.fill_pool()
-        self.sort_pool()
         self.refresh_score()
+        self.sort_pool()
 
     def sort_pool(self):
         self.pool.sort(key=lambda x: x[1], reverse=True)
 
+    def load_csv(self, path):
+        game = Game(empty_board=True)
+        with open(path) as file:
+            for y, line in enumerate(file):
+                row = re.split(r'[;\n]', line)
+                for x, num in enumerate(row):
+                    if num == '1':
+                        game.add(y + 1, x + 1, 'home')
+                    elif num == '2':
+                        game.add(y + 1, x + 1, 'tower')
+        self.pool = [(game, game.score())]
+
     def fill_pool(self):
+        while len(self.pool) > self.max_pool:
+            while len(self.pool) > self.pool_size:
+                self.dropout(flat=0.1)
+
         while len(self.pool) < self.pool_size:
             self.pool.append(self.random_pool())
 
     def print_scores(self, n):
-        for inde, game in enumerate(self.pool):
+        for inde, (game, score) in enumerate(self.pool):
             if n < inde:
                 break
-            print(game[1])
+            game.score()
+            print(game.home_count)
 
     def refresh_score(self):
         self.pool = [(game, game.score()) for game, score in self.pool]
@@ -559,7 +585,8 @@ class Evolution:
 
     def clone(self):
         """
-        Clones random fragments of target board, size is also random
+        Clones random fragments of target board, size is also random.
+        Approves only higher scores
         Returns:
 
         """
@@ -585,13 +612,16 @@ class Evolution:
                 target_board = self.pool[target_id][0].board.copy()
                 new_game.board[y_min:y_max, x_min:x_max] = target_board[y_min:y_max, x_min:x_max]
                 new_score = new_game.score()
-                if new_score >= score:
+                if new_score > score:
                     game.board = new_game.board.copy()
                     self.pool[ind] = (game, new_score)
+                # else:
+                #     self.pool.append((new_game, new_score))
 
     def shuffle(self):
         """
         Puts random pieces in random places
+        Approves same and higher scores
         Returns:
 
         """
@@ -608,10 +638,13 @@ class Evolution:
                 if new_score >= score:
                     game.board = new_game.board.copy()
                     self.pool[ind] = (game, new_score)
+                # elif score - new_score <= self.child_score_tolerance:
+                #     self.pool.append((new_game, new_score))
 
     def move_areas(self):
         """
         Swaps random pieces on board
+        Approves same and higher scores
         Returns:
 
         """
@@ -631,7 +664,7 @@ class Evolution:
                         or not 0 <= index_x + direction_x < BOARD_SIZE \
                         or not direction_y and not direction_x:
                     index_y, index_x = np.random.randint(0, BOARD_SIZE, 2)
-                    direction_y, direction_x = np.random.randint(-2, 3, 2)
+                    direction_y, direction_x = np.random.randint(-4, 5, 2)
                     size_y, size_x = np.random.randint(1, BOARD_SIZE // 4, 2)
 
                 for curr_y in range(0, size_y):
@@ -646,6 +679,8 @@ class Evolution:
                 if new_score >= score:
                     game.board = new_game.board.copy()
                     self.pool[ind] = (game, new_score)
+                elif score - new_score <= self.child_score_tolerance:
+                    self.pool.append((new_game, new_score))
 
     def swap(self):
         """
@@ -678,9 +713,12 @@ class Evolution:
                 if new_score >= score:
                     game.board = new_game.board.copy()
                     self.pool[ind] = (game, new_score)
+                elif score - new_score <= self.child_score_tolerance:
+                    self.pool.append((new_game, new_score))
 
-    def dropout(self):
-        self.pool = self.pool[:int(len(self.pool) * (1 - self.drop_ammount_flat))]
+    def dropout(self, flat=0.0):
+        if flat > 0:
+            self.pool = self.pool[:int(len(self.pool) * (1 - flat))]
         self.pool = [obj for ind, obj in enumerate(self.pool) if random.random() > self.drop_chance or ind == 0]
 
     def load_pool(self, filepath=None):
@@ -689,6 +727,7 @@ class Evolution:
         else:
             load_from = f'{self.name}/evolution_pool.npy'
         try:
+            print(f"Loading: {load_from}")
             pool = list(np.load(load_from, allow_pickle=True))
         except FileNotFoundError:
             print(f"Not found pool: {load_from}")
@@ -700,7 +739,7 @@ class Evolution:
         size = len(array)
 
         if not window_size or window_size and size < window_size:
-            window_size = size // 20
+            window_size = size // 15
 
         while len(array) % window_size or window_size % agents_num:
             window_size -= 1
@@ -721,34 +760,41 @@ class Evolution:
 
         return output
 
-    def evolution(self, epoch=100):
+    def evolution(self, epoch=100, timeout=None):
         stats = {'epoch': [], 'max': [], 'pool_avg': [], 'scores': []}
         time0 = time.time()
         for x in range(epoch):
+            if timeout and time.time() - time0 > timeout:
+                break
             if not x % 100 and x != 0:
                 self.save_pool()
-            self.fill_pool()
-
-            self.clone()
-            self.shuffle()
-            # self.swap()
-            self.move_areas()
-            self.sort_pool()
 
             if not x % self.drop_every and x != 0:
-                self.dropout()
+                self.dropout(flat=self.drop_ammount_flat)
+
+            self.fill_pool()
+
+            # self.clone()
+            # self.swap()
+            self.shuffle()
+            self.move_areas()
+
+            self.sort_pool()
 
             stats['epoch'] += [x] * len(self.pool)
             current_scores = self.get_scores()
             stats['scores'] += current_scores
             avg = np.mean(current_scores)
             stats['pool_avg'].append(avg)
-            print(f"Epoch {x:<5} ended with avg: {avg:>8.2f}, "
+            print(f"Epoch {x:<5} ended with avg: {avg:>8.2f}, pool_size: {len(self.pool):>4}, "
                   f"good_homes: {self.pool[0][0].home_count:>3}, best: {np.max(current_scores):<7.2f}")
+
+        self.refresh_score()
+        self.sort_pool()
 
         print(f"Evolution took: {(time.time() - time0) / 60:<4.2f} min")
         plt.figure(figsize=(16, 9))
-        plt.scatter(stats['epoch'], stats['scores'], c='m', alpha=0.1, s=10, label='Scores')
+        plt.scatter(stats['epoch'], stats['scores'], c=[(0.4, 0.4, 0.1)], alpha=0.3, s=10, label='Scores')
         plt.plot(stats['pool_avg'], c='b', label='local_avg', linewidth=2)
         plt.plot(self.moving_average(stats['pool_avg'], agents_num=1),
                  c=(0.1, 1, 0.3), label='global_avg', linewidth=4)
@@ -757,9 +803,17 @@ class Evolution:
 
 
 if __name__ == "__main__":
-    name = "run8"
-    alg1 = Evolution(name, pool_size=50, drop_every=100)
-    alg1.evolution(1000)
+    name = "run4"
+    alg1 = Evolution(name, pool_size=20, max_pool=100, drop_every=500, drop_ammount_flat=0.3, drop_chance=0.02,
+                     swap_chance=0.003, child_score_tolerance=300)
+    alg1.evolution(5000, timeout=10 * 60)
     alg1.save_pool()
-    alg1.print_scores(15)
-    alg1.draw_best(15)
+
+    try:
+        alg1.print_scores(10)
+    except IndexError:
+        pass
+    try:
+        alg1.draw_best(10)
+    except IndexError:
+        pass

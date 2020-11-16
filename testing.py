@@ -9,6 +9,7 @@ def test1():
     y = 7
     x = 8
     game.add(y, x, 'tower')
+    game.add(0, 5, 'tower')
     game.validate()
     game.draw(debug_power=True, save="test/1")
 
@@ -28,6 +29,7 @@ def test2():
     y = 20
     x = 20
     game.add(y, x, 'tower')
+    game.add(28, x, 'tower')
     game.validate()
     game.draw(debug_power=True, save="test/2")
 
@@ -46,6 +48,7 @@ def test3():
     y = 20
     x = 7
     game.add(y, x, 'tower')
+    game.add(y, 0, 'tower')
     game.validate()
     game.draw(debug_power=True, save="test/3")
 
@@ -64,6 +67,7 @@ def test4():
     y = 7
     x = 20
     game.add(y, x, 'tower')
+    game.add(0, x, 'tower')
     game.validate()
     game.draw(debug_power=True, save="test/4")
 
@@ -81,6 +85,8 @@ def test5():
     game = Game(empty_board=True)
 
     game.add(5, 5, 'tower')
+    game.add(0, 5, 'tower')
+
     y, x = 12, 10
     game.add(y, x, 'tower')
     game.validate()
